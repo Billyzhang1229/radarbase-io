@@ -9,6 +9,25 @@ scaffold; modules, examples, and tests will be filled in over time.
 uv sync --dev
 ```
 
+## Storage configuration
+
+This project uses `fsspec`-style URLs so the same code can read from SFTP, S3,
+or local paths. Configure the root with an environment variable (use
+`.env.local`, which is gitignored), and keep credentials in native tools (SSH
+config for SFTP, AWS credentials for S3).
+
+Example `.env.local`:
+
+```
+RADARBASE_STORAGE_URL=sftp://radarbase/path/to/project
+RADARBASE_STORAGE_OPTIONS={"anon": false}
+```
+
+Example URLs:
+- `sftp://radarbase/path/to/project`
+- `s3://my-bucket/path/to/project`
+- `/data/radar` (local path)
+
 ## Test data
 
 This repo uses the RADAR-base mockdata repository as a git submodule at
