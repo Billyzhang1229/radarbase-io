@@ -10,8 +10,23 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 keywords = ["radar", "radar-base", "io"]
 dependencies = [
+    "bcrypt>=5.0.0",
+    "dask>=2025.12.0",
+    "distributed>=2025.12.0",
     "fsspec>=2025.12.0",
+    "numpy>=2.4.0",
+    "pandas>=2.3.3",
+    "python-dotenv>=1.2.1",
+    "sshfs>=2025.11.0",
     "xarray>=2025.12.0",
+]
+
+[project.optional-dependencies]
+notebook = [
+    "marimo[recommended]>=0.18.4",
+]
+bokeh = [
+    "bokeh>=3.8.2",
 ]
 
 [dependency-groups]

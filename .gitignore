@@ -20,3 +20,8 @@ wheels/
 .env
 .env.local
 .env.*.local
+
+# Development files
+dev/
+.cache/
+AGENTS.md
