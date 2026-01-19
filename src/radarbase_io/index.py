@@ -4,9 +4,8 @@ from itertools import chain
 
 import pandas as pd
 from dask import compute, delayed
-from fsspec.spec import AbstractFileSystem
 
-from .fs import normalize_ls, resolve_fs
+from .fs import fs_from_json, fs_to_json, normalize_ls, resolve_fs
 from .utils import parse_participant_uuids, parse_radar_path
 
 
@@ -45,7 +44,7 @@ def list_one_participant(participant_dir, fs, *, check_schema=False):
 
 def _list_one_participant_from_json(participant_dir, fs_json, check_schema=False):
     """Reconstruct a filesystem from JSON and list a participant directory."""
-    fs = AbstractFileSystem.from_json(fs_json)
+    fs = fs_from_json(fs_json)
     return list_one_participant(participant_dir, fs, check_schema=check_schema)
 
 
@@ -77,7 +76,7 @@ def _build_index(
 
     # execute
     if use_dask and client is not None:
-        fs_json = fs.to_json()
+        fs_json = fs_to_json(fs)
         futures = client.map(
             _list_one_participant_from_json,
             participant_dirs,
