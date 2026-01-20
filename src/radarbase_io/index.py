@@ -9,7 +9,13 @@ from .fs import fs_from_json, fs_to_json, resolve_paths
 from .utils import parse_participant_uuids, parse_radar_path
 
 
-def list_one_participant(participant_dir, fs, *, check_schema=False):
+def list_one_participant(
+    participant_dir,
+    fs=None,
+    *,
+    fs_json=None,
+    check_schema=False,
+):
     """
     List one participant directory and parse its immediate children.
 
@@ -17,8 +23,10 @@ def list_one_participant(participant_dir, fs, *, check_schema=False):
     ----------
     participant_dir : str
         Participant directory path.
-    fs : fsspec.AbstractFileSystem
+    fs : fsspec.AbstractFileSystem, optional
         Filesystem instance.
+    fs_json : str, optional
+        JSON representation of a filesystem created with `fs.to_json()`.
     check_schema : bool, default False
         If True, add `schema_exists` by checking `fs.exists(schema_path)`.
 
@@ -30,8 +38,16 @@ def list_one_participant(participant_dir, fs, *, check_schema=False):
     Raises
     ------
     ValueError
-        If a child path does not match the expected RADAR layout.
+        If neither `fs` nor `fs_json` is provided, if both are passed, or if a
+        child path does not match the expected RADAR layout.
     """
+    if fs is None:
+        if fs_json is None:
+            raise ValueError("Pass either fs= or fs_json=.")
+        fs = fs_from_json(fs_json)
+    elif fs_json is not None:
+        raise ValueError("Pass either fs= or fs_json=, not both.")
+
     dir_paths = fs.ls(participant_dir, detail=False)
     rows = [parse_radar_path(path) for path in dir_paths]
 
@@ -40,12 +56,6 @@ def list_one_participant(participant_dir, fs, *, check_schema=False):
             record["schema_exists"] = fs.exists(record["schema_path"])
 
     return rows
-
-
-def _list_one_participant_from_json(participant_dir, fs_json, check_schema=False):
-    """Reconstruct a filesystem from JSON and list a participant directory."""
-    fs = fs_from_json(fs_json)
-    return list_one_participant(participant_dir, fs, check_schema=check_schema)
 
 
 def _build_index(
@@ -74,7 +84,7 @@ def _build_index(
     if use_dask and client is not None:
         fs_json = fs_to_json(fs)
         futures = client.map(
-            _list_one_participant_from_json,
+            list_one_participant,
             participant_dirs,
             fs_json=fs_json,
             check_schema=check_schema,
