@@ -5,7 +5,7 @@ from itertools import chain
 import pandas as pd
 from dask import compute, delayed
 
-from .fs import fs_from_json, fs_to_json, normalize_ls, resolve_fs
+from .fs import fs_from_json, fs_to_json, resolve_paths
 from .utils import parse_participant_uuids, parse_radar_path
 
 
@@ -60,15 +60,11 @@ def _build_index(
     storage_options=None,
 ):
     """Build an index DataFrame for a single project root."""
-    fs, root_path = resolve_fs(root, fs=fs, storage_options=storage_options)
+    fs, root_paths = resolve_paths(root, fs=fs, storage_options=storage_options)
+    root_path = root_paths[0]
 
-    entries = fs.ls(root_path, detail=ensure_dirs)
-
-    if ensure_dirs:
-        entries = normalize_ls(entries)  # only meaningful for detail=True
-        candidate_paths = [e["name"] for e in entries if e.get("type") == "directory"]
-    else:
-        candidate_paths = entries  # list[str]
+    entries = fs.ls(root_path, detail=False)
+    candidate_paths = entries  # list[str]
 
     participant_ids = parse_participant_uuids(candidate_paths)
     root_norm = root_path.rstrip("/")
@@ -137,7 +133,7 @@ def build_index(paths, fs=None, *, client=None, storage_options=None, **kwargs):
     client : dask.distributed.Client, optional
         Dask client for parallel listing.
     storage_options : dict, optional
-        Storage options passed to `fsspec.core.url_to_fs`.
+        Storage options used when resolving paths with fsspec.
     **kwargs
         Forwarded to `_build_index`.
 
@@ -154,15 +150,17 @@ def build_index(paths, fs=None, *, client=None, storage_options=None, **kwargs):
     if isinstance(paths, str):
         paths = [paths]
 
+    fs, root_paths = resolve_paths(paths, fs=fs, storage_options=storage_options)
+    child_storage_options = None if fs is not None else storage_options
     dfs = [
         _build_index(
             path,
             fs=fs,
             client=client,
-            storage_options=storage_options,
+            storage_options=child_storage_options,
             **kwargs,
         )
-        for path in paths
+        for path in root_paths
     ]
     dfs = [frame for frame in dfs if not frame.empty]
 
