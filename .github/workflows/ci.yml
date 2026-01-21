@@ -24,4 +24,12 @@ jobs:
       - name: Ruff format
         run: uv run ruff format --check .
       - name: Pytest
-        run: uv run -m pytest
+        run: uv run -m coverage run --source=radarbase_io -m pytest
+      - name: Coverage XML
+        run: uv run -m coverage xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: Billyzhang1229/radarbase-io
+          files: coverage.xml
