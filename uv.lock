@@ -611,6 +611,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6f/3a/2121294941227c548d4b5f897a8a1b5f4c44a58f5437f239e6b86511d78e/dask-2025.12.0-py3-none-any.whl", hash = "sha256:4213ce9c5d51d6d89337cff69de35d902aa0bf6abdb8a25c942a4d0281f3a598", size = 1481293, upload-time = "2025-12-12T14:58:59.32Z" },
 ]
 
+[package.optional-dependencies]
+distributed = [
+    { name = "distributed" },
+]
+
 [[package]]
 name = "distlib"
 version = "0.4.0"
@@ -1979,8 +1984,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "bcrypt" },
-    { name = "dask" },
-    { name = "distributed" },
+    { name = "dask", extra = ["distributed"] },
     { name = "fsspec" },
     { name = "numpy" },
     { name = "pandas" },
@@ -2009,8 +2013,7 @@ dev = [
 requires-dist = [
     { name = "bcrypt", specifier = ">=5.0.0" },
     { name = "bokeh", marker = "extra == 'bokeh'", specifier = ">=3.8.2" },
-    { name = "dask", specifier = ">=2025.12.0" },
-    { name = "distributed", specifier = ">=2025.12.0" },
+    { name = "dask", extras = ["distributed"], specifier = ">=2025.12.0" },
     { name = "fsspec", specifier = ">=2025.12.0" },
     { name = "marimo", extras = ["recommended"], marker = "extra == 'notebook'", specifier = ">=0.18.4" },
     { name = "numpy", specifier = ">=2.4.0" },
