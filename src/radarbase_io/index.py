@@ -3,19 +3,14 @@
 from itertools import chain
 
 import pandas as pd
-from dask import compute, delayed
+from dask import delayed
 
+from .performance import run_dask_tasks
 from .fs import fs_from_json, fs_to_json, resolve_paths
 from .utils import parse_participant_uuids, parse_radar_path
 
 
-def list_one_participant(
-    participant_dir,
-    fs=None,
-    *,
-    fs_json=None,
-    check_schema=False,
-):
+def list_one_participant(participant_dir, fs=None, *, fs_json=None):
     """
     List one participant directory and parse its immediate children.
 
@@ -27,9 +22,6 @@ def list_one_participant(
         Filesystem instance.
     fs_json : str, optional
         JSON representation of a filesystem created with `fs.to_json()`.
-    check_schema : bool, default False
-        If True, add `schema_exists` by checking `fs.exists(schema_path)`.
-
     Returns
     -------
     list of dict
@@ -51,10 +43,6 @@ def list_one_participant(
     dir_paths = fs.ls(participant_dir, detail=False)
     rows = [parse_radar_path(path) for path in dir_paths]
 
-    if check_schema:
-        for record in rows:
-            record["schema_exists"] = fs.exists(record["schema_path"])
-
     return rows
 
 
@@ -62,10 +50,7 @@ def _build_index(
     root,
     fs=None,
     *,
-    ensure_dirs=False,
-    check_schema=False,
     client=None,
-    use_dask=True,
     show_progress=False,
     storage_options=None,
 ):
@@ -80,52 +65,14 @@ def _build_index(
     root_norm = root_path.rstrip("/")
     participant_dirs = [f"{root_norm}/{pid}" for pid in participant_ids]
 
-    # execute
-    if use_dask and client is not None:
-        fs_json = fs_to_json(fs)
-        futures = client.map(
-            list_one_participant,
-            participant_dirs,
-            fs_json=fs_json,
-            check_schema=check_schema,
-        )
-        if show_progress:
-            from dask.distributed import progress
-
-            progress(futures)
-
-        rows_nested = client.gather(futures)
-
-    elif use_dask:
-        tasks = [
-            delayed(list_one_participant)(path, fs, check_schema=check_schema)
-            for path in participant_dirs
-        ]
-
-        if show_progress:
-            try:
-                from dask.diagnostics import ProgressBar
-
-                with ProgressBar():
-                    rows_nested = compute(*tasks, scheduler="threads")
-            except Exception:
-                rows_nested = compute(*tasks, scheduler="threads")
-        else:
-            rows_nested = compute(*tasks, scheduler="threads")
-
-    else:
-        rows_nested = [
-            list_one_participant(path, fs, check_schema=check_schema)
-            for path in participant_dirs
-        ]
+    kwargs = {"fs": fs} if client is None else {"fs_json": fs_to_json(fs)}
+    tasks = [delayed(list_one_participant)(path, **kwargs) for path in participant_dirs]
+    rows_nested = run_dask_tasks(
+        tasks, client=client, show_progress=show_progress, scheduler="threads"
+    )
 
     records = list(chain.from_iterable(rows_nested))
     df = pd.DataFrame.from_records(records)
-
-    if not df.empty:
-        df = df.sort_values(["project_id", "user_id", "data_type"]).reset_index(
-            drop=True
-        )
 
     return df
 
