@@ -14,9 +14,10 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v3
       - name: Install dependencies
         run: uv sync --dev
       - name: Ruff lint
@@ -28,6 +29,7 @@ jobs:
       - name: Coverage XML
         run: uv run -m coverage xml
       - name: Upload coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -45,6 +45,21 @@ def test_list_one_participant_rejects_fs_and_fs_json(tmp_path):
         list_one_participant(str(participant), fs=fs, fs_json=fs.to_json())
 
 
+def test_list_one_participant_skips_files(tmp_path):
+    root = tmp_path / "projA"
+    participant = root / UUID1
+    (participant / "accel").mkdir(parents=True)
+    (participant / "schema-accel.json").write_text("{}")
+    (participant / ".DS_Store").write_text("noise")
+    (participant / "notes.txt").write_text("ignore me")
+
+    fs = fsspec.filesystem("file")
+    rows = list_one_participant(str(participant), fs=fs)
+
+    data_types = {row["data_type"] for row in rows}
+    assert data_types == {"accel"}
+
+
 def test_build_index_local(tmp_path):
     root = tmp_path / "projA"
     _make_tree(root)

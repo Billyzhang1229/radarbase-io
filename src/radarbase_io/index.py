@@ -40,7 +40,22 @@ def list_one_participant(participant_dir, fs=None, *, fs_json=None):
     elif fs_json is not None:
         raise ValueError("Pass either fs= or fs_json=, not both.")
 
-    dir_paths = fs.ls(participant_dir, detail=False)
+    entries = fs.ls(participant_dir, detail=True)
+    if isinstance(entries, dict):
+        entries = entries.values()
+
+    dir_paths = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            entry_type = entry.get("type")
+            path = entry.get("name")
+            if entry_type in {"directory", "dir"} and path:
+                dir_paths.append(path)
+            elif entry_type is None and path and fs.isdir(path):
+                dir_paths.append(path)
+        elif fs.isdir(entry):
+            dir_paths.append(entry)
+
     rows = [parse_radar_path(path) for path in dir_paths]
 
     return rows
