@@ -31,11 +31,9 @@ def parse_participant_uuids(paths):
         base = os.path.basename(path.rstrip("/"))
         return base if uuid_pattern.match(base) else None
 
-    # Handle single path
     if isinstance(paths, str):
         return extract_uuid(paths)
 
-    # Handle list or array
     paths = np.asarray(paths)
     extracted = np.vectorize(extract_uuid, otypes=[object])(paths)
     return extracted[extracted != np.array(None)]

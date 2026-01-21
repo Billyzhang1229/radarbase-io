@@ -1,7 +1,6 @@
 """Filesystem helpers built on fsspec."""
 
 import os
-from collections.abc import Sequence
 
 import fsspec
 
@@ -16,15 +15,7 @@ def fs_to_json(fs):
     return fs.to_json()
 
 
-def _resolve_paths(
-    paths: str | os.PathLike | Sequence[str | os.PathLike],
-    *,
-    fs: fsspec.spec.AbstractFileSystem | None = None,
-    storage_options: dict | None = None,
-) -> tuple[
-    fsspec.spec.AbstractFileSystem | None,
-    list[str],
-]:
+def _resolve_paths(paths, *, fs=None, storage_options=None):
     if fs is not None and storage_options:
         raise ValueError("Pass either fs= or storage_options=, not both.")
 
@@ -52,15 +43,7 @@ def _resolve_paths(
     return fs_out, list(fs_paths)
 
 
-def resolve_paths(
-    paths: str | os.PathLike | Sequence[str | os.PathLike],
-    *,
-    fs: fsspec.spec.AbstractFileSystem | None = None,
-    storage_options: dict | None = None,
-) -> tuple[
-    fsspec.spec.AbstractFileSystem | None,
-    list[str],
-]:
+def resolve_paths(paths, *, fs=None, storage_options=None):
     """
     Resolve one or many paths into a shared filesystem and fs paths.
 

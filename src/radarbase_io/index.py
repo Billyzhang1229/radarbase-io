@@ -5,8 +5,8 @@ from itertools import chain
 import pandas as pd
 from dask import delayed
 
-from .performance import run_dask_tasks
 from .fs import fs_from_json, fs_to_json, resolve_paths
+from .performance import run_dask_tasks
 from .utils import parse_participant_uuids, parse_radar_path
 
 
@@ -56,10 +56,12 @@ def _build_index(
 ):
     """Build an index DataFrame for a single project root."""
     fs, root_paths = resolve_paths(root, fs=fs, storage_options=storage_options)
+    if not root_paths:
+        return pd.DataFrame()
     root_path = root_paths[0]
 
     entries = fs.ls(root_path, detail=False)
-    candidate_paths = entries  # list[str]
+    candidate_paths = entries
 
     participant_ids = parse_participant_uuids(candidate_paths)
     root_norm = root_path.rstrip("/")
