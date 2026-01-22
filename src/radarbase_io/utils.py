@@ -93,7 +93,8 @@ def parse_radar_path(path):
     schema file exists. It relies purely on string parsing and the assumed
     RADAR directory structure.
     """
-    parts = path.rstrip("/").split("/")
+    normalized = path.replace("\\", "/").rstrip("/")
+    parts = normalized.split("/")
     if len(parts) < 3:
         message = f"Expected .../<project_id>/<user_id>/<data_type>, got: {path!r}"
         raise ValueError(message)

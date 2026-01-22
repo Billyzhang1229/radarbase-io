@@ -45,6 +45,18 @@ def test_parse_radar_path_trailing_slash():
     assert result["data_type"] == "accel"
 
 
+def test_parse_radar_path_windows_path():
+    path = f"C:\\data\\proj\\{UUID1}\\accel"
+    result = parse_radar_path(path)
+
+    assert result["project_id"] == "proj"
+    assert result["user_id"] == UUID1
+    assert result["data_type"] == "accel"
+    assert result["schema_path"].replace("\\", "/") == (
+        f"C:/data/proj/{UUID1}/schema-accel.json"
+    )
+
+
 def test_parse_radar_path_too_short_raises():
     with pytest.raises(ValueError, match="Expected .*<project_id>"):
         parse_radar_path("a/b")
