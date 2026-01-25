@@ -17,6 +17,11 @@ def test_run_dask_tasks_empty():
     assert run_dask_tasks([]) == []
 
 
+def test_run_dask_tasks_single_delayed():
+    task = delayed(_add_one)(1)
+    assert run_dask_tasks(task, scheduler="threads") == [2]
+
+
 def test_run_dask_tasks_local_compute():
     tasks = [delayed(_add_one)(1), delayed(_return_ok)()]
     out = run_dask_tasks(tasks, scheduler="threads")

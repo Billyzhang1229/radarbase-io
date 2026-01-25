@@ -1,6 +1,7 @@
 """Acceleration helpers (Dask/Numba/JIT related)."""
 
 from dask import compute
+from dask.delayed import Delayed
 from dask.distributed import progress
 
 
@@ -19,7 +20,10 @@ def run_dask_tasks(tasks, *, client=None, show_progress=False, scheduler="thread
     scheduler : str, default "threads"
         Dask scheduler name used when no client is provided.
     """
-    tasks = list(tasks)
+    if isinstance(tasks, Delayed):
+        tasks = [tasks]
+    else:
+        tasks = list(tasks)
     if not tasks:
         return []
 
