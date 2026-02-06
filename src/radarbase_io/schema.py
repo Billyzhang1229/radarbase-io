@@ -54,6 +54,68 @@ def _extract_record_type(type_obj):
     return None
 
 
+def _extract_array_record_type(type_obj):
+    if isinstance(type_obj, list):
+        for entry in type_obj:
+            record = _extract_array_record_type(entry)
+            if record is not None:
+                return record
+        return None
+    if isinstance(type_obj, dict):
+        if type_obj.get("type") == "array":
+            return _extract_record_type(type_obj.get("items"))
+        inner = type_obj.get("type")
+        if isinstance(inner, (dict, list)):
+            return _extract_array_record_type(inner)
+    return None
+
+
+def _iter_observed_headers(observed_columns):
+    if not observed_columns:
+        return []
+    if isinstance(observed_columns, (list, tuple)) and all(
+        isinstance(item, str) for item in observed_columns
+    ):
+        return [observed_columns]
+    return observed_columns
+
+
+def _collect_array_record_columns(prefix, array_record, observed_columns):
+    if not observed_columns:
+        return []
+    item_fields = array_record.get("fields")
+    if not isinstance(item_fields, list):
+        raise ValueError(f"Array record field '{prefix}' missing 'fields'")
+    subfield_dtypes = {}
+    for item_field in item_fields:
+        if not isinstance(item_field, dict) or "name" not in item_field:
+            raise ValueError(f"Array record field '{prefix}' has invalid subfield")
+        subfield_dtypes[item_field["name"]] = _avro_type_to_pandas(
+            item_field.get("type")
+        )
+    expanded = []
+    seen = set()
+    match_prefix = f"{prefix}."
+    for header in _iter_observed_headers(observed_columns):
+        if not isinstance(header, (list, tuple)):
+            continue
+        for column in header:
+            if not isinstance(column, str) or not column.startswith(match_prefix):
+                continue
+            suffix = column[len(match_prefix) :]
+            parts = suffix.split(".")
+            if len(parts) != 2:
+                continue
+            index, item_name = parts
+            if not index.isdigit() or item_name not in subfield_dtypes:
+                continue
+            if column in seen:
+                continue
+            seen.add(column)
+            expanded.append((column, subfield_dtypes[item_name]))
+    return expanded
+
+
 def _avro_type_to_pandas(type_obj):
     if isinstance(type_obj, list):
         non_null = [entry for entry in type_obj if not _is_null_type(entry)]
@@ -100,6 +162,7 @@ def build_schema(
     flatten_key="key",
     flatten_value="value",
     prefer_value_record=True,
+    observed_columns=None,
     fs=None,
     storage_options=None,
 ):
@@ -116,6 +179,9 @@ def build_schema(
         Field name used for value record flattening.
     prefer_value_record : bool, default True
         If True, choose the nested value record for measurement metadata.
+    observed_columns : list[list[str]] or list[str], optional
+        Flattened CSV headers used to expand array-of-record fields into
+        concrete indexed columns (for example ``value.answers.0.questionId``).
     fs : fsspec.AbstractFileSystem, optional
         Filesystem instance used to load a schema path.
     storage_options : dict, optional
@@ -178,7 +244,8 @@ def build_schema(
         field = fields_by_name.get(name)
         if field is None:
             continue
-        record = _extract_record_type(field.get("type"))
+        field_type = field.get("type")
+        record = _extract_record_type(field_type)
         if record is not None:
             subfields = record.get("fields")
             if not isinstance(subfields, list):
@@ -187,11 +254,35 @@ def build_schema(
                 if not isinstance(subfield, dict) or "name" not in subfield:
                     raise ValueError(f"Record field '{name}' has invalid subfield")
                 column = f"{name}.{subfield['name']}"
+                array_record = _extract_array_record_type(subfield.get("type"))
+                if array_record is not None:
+                    expanded = _collect_array_record_columns(
+                        column,
+                        array_record,
+                        observed_columns,
+                    )
+                    if expanded:
+                        for expanded_column, expanded_dtype in expanded:
+                            columns.append(expanded_column)
+                            pandas_dtypes[expanded_column] = expanded_dtype
+                        continue
                 columns.append(column)
                 pandas_dtypes[column] = _avro_type_to_pandas(subfield.get("type"))
         else:
+            array_record = _extract_array_record_type(field_type)
+            if array_record is not None:
+                expanded = _collect_array_record_columns(
+                    name,
+                    array_record,
+                    observed_columns,
+                )
+                if expanded:
+                    for expanded_column, expanded_dtype in expanded:
+                        columns.append(expanded_column)
+                        pandas_dtypes[expanded_column] = expanded_dtype
+                    continue
             columns.append(name)
-            pandas_dtypes[name] = _avro_type_to_pandas(field.get("type"))
+            pandas_dtypes[name] = _avro_type_to_pandas(field_type)
 
     meta = pd.DataFrame(
         {col: pd.Series(dtype=dtype) for col, dtype in pandas_dtypes.items()}
