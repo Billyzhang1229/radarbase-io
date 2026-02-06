@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import gzip
 import json
 from pathlib import Path
 from typing import Any
@@ -10,7 +12,7 @@ import pandas as pd
 import pytest
 
 from radarbase_io.index import build_index
-from radarbase_io.schema import build_schema
+from radarbase_io.schema import _iter_observed_headers, build_schema
 
 
 def _repo_root() -> Path:
@@ -59,6 +61,17 @@ def _load_schema_file(path: Path) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"Schema {path} is not a JSON object")
     return data
+
+
+def _write_header_only_gzip_csv(path: Path, header: list[str]) -> None:
+    with gzip.open(path, "wt", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(header)
+
+
+def _read_header_from_gzip_csv(path: Path) -> list[str]:
+    with gzip.open(path, "rt", newline="") as handle:
+        return next(csv.reader(handle))
 
 
 def _extract_record_type(type_obj: Any) -> dict | None:
@@ -266,6 +279,11 @@ def test_build_schema_pyarrow_optional():
     assert result["pyarrow_schema"].names == result["columns"]
 
 
+def test_iter_observed_headers_normalizes_inputs():
+    assert _iter_observed_headers(None) == []
+    assert _iter_observed_headers(["a", "b"]) == [["a", "b"]]
+
+
 def test_build_schema_invalid_schema_type_raises():
     with pytest.raises(ValueError, match="schema must be a dict or path-like"):
         build_schema(123)
@@ -352,6 +370,41 @@ def test_build_schema_record_invalid_subfield_raises():
         build_schema(schema)
 
 
+def test_build_schema_array_record_missing_fields_raises():
+    schema = {
+        "type": "record",
+        "name": "Top",
+        "fields": [
+            {
+                "name": "events",
+                "type": {"type": "array", "items": {"type": "record", "name": "Event"}},
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="missing 'fields'"):
+        build_schema(schema, observed_columns=[["events.0.value"]])
+
+
+def test_build_schema_array_record_invalid_subfield_raises():
+    schema = {
+        "type": "record",
+        "name": "Top",
+        "fields": [
+            {
+                "name": "events",
+                "type": {
+                    "type": "array",
+                    "items": {"type": "record", "name": "Event", "fields": [{}]},
+                },
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="invalid subfield"):
+        build_schema(schema, observed_columns=[["events.0.value"]])
+
+
 def test_build_schema_handles_union_record_and_non_record_fields():
     schema = {
         "type": "record",
@@ -423,3 +476,96 @@ def test_build_schema_without_key_value_uses_top_level_order():
     result = build_schema(schema)
     assert result["columns"] == ["alpha", "nested.beta"]
     assert result["measurement"] == "Top"
+
+
+def test_build_schema_top_level_array_record_expansion_and_header_filtering():
+    schema = {
+        "type": "record",
+        "name": "Top",
+        "fields": [
+            {
+                "name": "events",
+                "type": [
+                    "null",
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "record",
+                            "name": "Event",
+                            "fields": [{"name": "value", "type": "int"}],
+                        },
+                    },
+                ],
+            }
+        ],
+    }
+    observed_columns = [
+        "not-a-header-list",
+        [
+            "events.malformed",
+            "events.xyz.value",
+            "events.0.unknown",
+            "events.0.value",
+            123,
+        ],
+    ]
+
+    result = build_schema(schema, observed_columns=observed_columns)
+
+    assert result["columns"] == ["events.0.value"]
+    assert result["pandas_dtypes"]["events.0.value"] == "Int64"
+
+
+def test_build_schema_phq8_with_two_files_uses_answer_column_union(tmp_path):
+    schema_path = SCHEMAS_DIR / "schema-questionnaire_phq8.json"
+    if not schema_path.exists():
+        pytest.skip("PHQ8 schema fixture not found")
+
+    base_columns = [
+        "key.projectId",
+        "key.userId",
+        "key.sourceId",
+        "value.time",
+        "value.timeCompleted",
+        "value.timeNotification",
+        "value.name",
+        "value.version",
+    ]
+    answer_fields = ["questionId", "value", "startTime", "endTime"]
+
+    file_one_header = base_columns + [
+        f"value.answers.{index}.{field}"
+        for index in range(4)
+        for field in answer_fields
+    ]
+    file_two_header = base_columns + [
+        f"value.answers.{index}.{field}"
+        for index in range(8)
+        for field in answer_fields
+    ]
+
+    file_one = tmp_path / "phq8_a.csv.gz"
+    file_two = tmp_path / "phq8_b.csv.gz"
+    _write_header_only_gzip_csv(file_one, file_one_header)
+    _write_header_only_gzip_csv(file_two, file_two_header)
+
+    observed_columns = [
+        _read_header_from_gzip_csv(file_one),
+        _read_header_from_gzip_csv(file_two),
+    ]
+    result = build_schema(schema_path, observed_columns=observed_columns)
+
+    expected_answer_columns = [
+        f"value.answers.{index}.{field}"
+        for index in range(8)
+        for field in answer_fields
+    ]
+    expected_columns = base_columns + expected_answer_columns
+
+    assert result["columns"] == expected_columns
+    assert "value.answers" not in result["columns"]
+
+    assert result["pandas_dtypes"]["value.answers.0.questionId"] == "object"
+    assert result["pandas_dtypes"]["value.answers.0.value"] == "object"
+    assert result["pandas_dtypes"]["value.answers.0.startTime"] == "float64"
+    assert result["pandas_dtypes"]["value.answers.0.endTime"] == "float64"

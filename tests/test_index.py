@@ -60,6 +60,51 @@ def test_list_one_participant_skips_files(tmp_path):
     assert data_types == {"accel"}
 
 
+def test_list_one_participant_accepts_dict_ls_entries(tmp_path, monkeypatch):
+    root = tmp_path / "projA"
+    participant = root / UUID1
+    accel = participant / "accel"
+    gps = participant / "gps"
+    accel.mkdir(parents=True)
+    gps.mkdir()
+
+    fs = fsspec.filesystem("file")
+
+    def fake_ls(_path, detail=True):
+        assert detail is True
+        return {
+            "accel": {"name": str(accel), "type": "directory"},
+            "gps": {"name": str(gps)},
+        }
+
+    monkeypatch.setattr(fs, "ls", fake_ls)
+    rows = list_one_participant(str(participant), fs=fs)
+
+    data_types = {row["data_type"] for row in rows}
+    assert data_types == {"accel", "gps"}
+
+
+def test_list_one_participant_accepts_non_dict_ls_entries(tmp_path, monkeypatch):
+    root = tmp_path / "projA"
+    participant = root / UUID1
+    accel = participant / "accel"
+    accel.mkdir(parents=True)
+    file_path = participant / "notes.txt"
+    file_path.write_text("ignore")
+
+    fs = fsspec.filesystem("file")
+
+    def fake_ls(_path, detail=True):
+        assert detail is True
+        return [str(accel), str(file_path)]
+
+    monkeypatch.setattr(fs, "ls", fake_ls)
+    rows = list_one_participant(str(participant), fs=fs)
+
+    assert len(rows) == 1
+    assert rows[0]["data_type"] == "accel"
+
+
 def test_build_index_local(tmp_path):
     root = tmp_path / "projA"
     _make_tree(root)
