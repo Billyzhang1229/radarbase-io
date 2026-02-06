@@ -3,7 +3,7 @@
 from dask import delayed
 
 import radarbase_io.performance as perf
-from radarbase_io.performance import run_dask_tasks
+from radarbase_io.performance import compute_dask
 
 
 def _add_one(value):
@@ -14,18 +14,27 @@ def _return_ok():
     return "ok"
 
 
-def test_run_dask_tasks_empty():
-    assert run_dask_tasks([]) == []
+def test_compute_dask_empty():
+    assert compute_dask([]) == []
 
 
-def test_run_dask_tasks_single_delayed():
+def test_compute_dask_none_tasks():
+    assert compute_dask(None) == []
+
+
+def test_compute_dask_non_iterable_task():
+    out = compute_dask(123)
+    assert out == [123]
+
+
+def test_compute_dask_single_delayed():
     task = delayed(_add_one)(1)
-    assert run_dask_tasks(task, scheduler="threads") == [2]
+    assert compute_dask(task, scheduler="threads") == [2]
 
 
-def test_run_dask_tasks_local_compute():
+def test_compute_dask_local_compute():
     tasks = [delayed(_add_one)(1), delayed(_return_ok)()]
-    out = run_dask_tasks(tasks, scheduler="threads")
+    out = compute_dask(tasks, scheduler="threads")
     assert out == [2, "ok"]
 
 
@@ -41,17 +50,17 @@ class _FakeClient:
         return [f"result-{item[1]}" for item in futures]
 
 
-def test_run_dask_tasks_client_compute_and_gather():
+def test_compute_dask_client_compute_and_gather():
     tasks = [delayed(_add_one)(1), delayed(_return_ok)()]
     client = _FakeClient()
 
-    out = run_dask_tasks(tasks, client=client)
+    out = compute_dask(tasks, client=client)
 
     assert len(client.computed) == 2
     assert out == ["result-0", "result-1"]
 
 
-def test_run_dask_tasks_client_with_progress(monkeypatch):
+def test_compute_dask_client_with_progress(monkeypatch):
     task = delayed(_add_one)(1)
     client = _FakeClient()
     seen = {}
@@ -61,7 +70,7 @@ def test_run_dask_tasks_client_with_progress(monkeypatch):
 
     monkeypatch.setattr(perf, "progress", _fake_progress)
 
-    out = run_dask_tasks([task], client=client, show_progress=True)
+    out = compute_dask([task], client=client, show_progress=True)
 
     assert seen["futures"] == [("future", 0)]
     assert out == ["result-0"]

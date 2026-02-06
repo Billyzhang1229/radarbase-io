@@ -2,6 +2,7 @@ import os
 import re
 
 import numpy as np
+import pandas as pd
 
 
 def parse_participant_uuids(paths):
@@ -113,3 +114,62 @@ def parse_radar_path(path):
         "path": path,
         "schema_path": "/".join(parts + [schema_file]),
     }
+
+
+def coerce_boolean_series(series):
+    """
+    Coerce a Series into pandas nullable boolean dtype.
+
+    String/int truthy and falsy values are normalized; unknown values become
+    missing (``pd.NA``).
+    """
+    true_values = {"true", "1", "t", "y", "yes"}
+    false_values = {"false", "0", "f", "n", "no"}
+
+    def convert(value):
+        if pd.isna(value):
+            return pd.NA
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            if value == 1:
+                return True
+            if value == 0:
+                return False
+            return pd.NA
+        value_str = str(value).strip().lower()
+        if value_str in true_values:
+            return True
+        if value_str in false_values:
+            return False
+        return pd.NA
+
+    return series.map(convert).astype("boolean")
+
+
+def coerce_series_dtype(series, dtype):
+    """Coerce a Series into a schema-driven dtype."""
+    if dtype in {"float32", "float64"}:
+        return pd.to_numeric(series, errors="coerce").astype(dtype)
+    if dtype == "Int64":
+        return pd.to_numeric(series, errors="coerce").astype("Int64")
+    if dtype == "boolean":
+        return coerce_boolean_series(series)
+    if dtype == "string":
+        return series.astype("string")
+    if dtype == "object":
+        return series.astype("object")
+    return series.astype(dtype)
+
+
+def align_and_coerce_dataframe(df, columns, pandas_dtypes):
+    """
+    Align DataFrame columns to schema and coerce values to schema dtypes.
+
+    Missing columns are added with null values, extra columns are dropped, and
+    output order follows ``columns``.
+    """
+    df = df.reindex(columns=columns)
+    for column in columns:
+        df[column] = coerce_series_dtype(df[column], pandas_dtypes[column])
+    return df
