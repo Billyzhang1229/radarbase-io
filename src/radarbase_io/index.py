@@ -6,7 +6,7 @@ import pandas as pd
 from dask import delayed
 
 from .fs import fs_from_json, fs_to_json, resolve_paths
-from .performance import run_dask_tasks
+from .performance import compute_dask
 from .utils import parse_participant_uuids, parse_radar_path
 
 
@@ -84,7 +84,7 @@ def _build_index(
 
     kwargs = {"fs": fs} if client is None else {"fs_json": fs_to_json(fs)}
     tasks = [delayed(list_one_participant)(path, **kwargs) for path in participant_dirs]
-    rows_nested = run_dask_tasks(
+    rows_nested = compute_dask(
         tasks, client=client, show_progress=show_progress, scheduler="threads"
     )
 

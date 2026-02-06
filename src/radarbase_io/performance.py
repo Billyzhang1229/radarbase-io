@@ -1,18 +1,30 @@
 """Acceleration helpers (Dask/Numba/JIT related)."""
 
 from dask import compute
+from dask.base import is_dask_collection
 from dask.delayed import Delayed
 from dask.distributed import progress
 
 
-def run_dask_tasks(tasks, *, client=None, show_progress=False, scheduler="threads"):
+def _normalize_tasks(tasks):
+    if tasks is None:
+        return []
+    if isinstance(tasks, Delayed) or is_dask_collection(tasks):
+        return [tasks]
+    try:
+        return list(tasks)
+    except TypeError:
+        return [tasks]
+
+
+def compute_dask(tasks, *, client=None, show_progress=False, scheduler="threads"):
     """
-    Execute Dask delayed tasks locally or via a distributed client.
+    Execute Dask tasks locally or via a distributed client.
 
     Parameters
     ----------
-    tasks : iterable
-        Dask delayed objects to execute.
+    tasks : object or iterable
+        A Dask task/collection or a sequence of tasks/collections.
     client : dask.distributed.Client, optional
         Distributed client used to schedule tasks.
     show_progress : bool, default False
@@ -20,10 +32,7 @@ def run_dask_tasks(tasks, *, client=None, show_progress=False, scheduler="thread
     scheduler : str, default "threads"
         Dask scheduler name used when no client is provided.
     """
-    if isinstance(tasks, Delayed):
-        tasks = [tasks]
-    else:
-        tasks = list(tasks)
+    tasks = _normalize_tasks(tasks)
     if not tasks:
         return []
 
