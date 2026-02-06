@@ -2,10 +2,11 @@
 
 from importlib import import_module
 
-__all__ = ["build_index", "list_participants"]
+__all__ = ["build_index", "build_schema", "list_participants"]
 
 _LAZY_ATTRS = {
     "build_index": (".index", "build_index"),
+    "build_schema": (".schema", "build_schema"),
     "list_participants": (".layout", "list_participants"),
 }
 

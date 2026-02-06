@@ -1,0 +1,154 @@
+{
+  "type": "record",
+  "name": "ThincItSpotter",
+  "namespace": "org.radarcns.kafka.ObservationKey_org.radarcns.active.thincit",
+  "doc": "combined key-value record",
+  "fields": [
+    {
+      "name": "key",
+      "type": {
+        "type": "record",
+        "name": "ObservationKey",
+        "namespace": "org.radarcns.kafka",
+        "doc": "Key of an observation.",
+        "fields": [
+          {
+            "name": "projectId",
+            "type": [
+              "null",
+              "string"
+            ],
+            "doc": "Project identifier. Null if unknown or the user is not enrolled in a project.",
+            "default": null
+          },
+          {
+            "name": "userId",
+            "type": "string",
+            "doc": "User Identifier created during the enrolment."
+          },
+          {
+            "name": "sourceId",
+            "type": "string",
+            "doc": "Unique identifier associated with the source."
+          }
+        ]
+      },
+      "doc": "Key of a Kafka SinkRecord"
+    },
+    {
+      "name": "value",
+      "type": {
+        "type": "record",
+        "name": "ThincItSpotter",
+        "namespace": "org.radarcns.active.thincit",
+        "doc": "THINC-it Assessment derived from Choice Reaction Time test. 40 trials, or 2 minutes max. Each trial is the presentation of a left or right facing arrow.",
+        "fields": [
+          {
+            "name": "time",
+            "type": "double",
+            "doc": "Timestamp in UTC (s) when the test is submitted to the subject."
+          },
+          {
+            "name": "timeCompleted",
+            "type": "double",
+            "doc": "Timestamp in UTC (s) when the subject completes the test."
+          },
+          {
+            "name": "score",
+            "type": "int",
+            "doc": "THINC-it index score - 0 to 4000."
+          },
+          {
+            "name": "meanLatency",
+            "type": "int",
+            "doc": "Mean latency of correct responses expressed in milliseconds."
+          },
+          {
+            "name": "timeouts",
+            "type": "int",
+            "doc": "The number of times that a subject failed to input a response within the time limit."
+          },
+          {
+            "name": "anticipations",
+            "type": "int",
+            "doc": "The number of responses within 100ms of stimulus presentation."
+          },
+          {
+            "name": "incorrect",
+            "type": "int",
+            "doc": "The number of incorrect responses."
+          },
+          {
+            "name": "inputType",
+            "type": {
+              "type": "enum",
+              "name": "ThincItInputType",
+              "doc": "Possible input type that a subject can use to do an assignment.",
+              "symbols": [
+                "KEYBOARD",
+                "MOUSE",
+                "TOUCHSCREEN",
+                "UNKNOWN"
+              ]
+            },
+            "doc": "Dominant input type used by the subject to answer.",
+            "default": "UNKNOWN"
+          },
+          {
+            "name": "quarterSummaryOne",
+            "type": {
+              "type": "record",
+              "name": "ThincItSpotterQuarterSummary",
+              "doc": "Trial summary for SymbolCheck assessment.",
+              "fields": [
+                {
+                  "name": "timeouts",
+                  "type": "int",
+                  "doc": "The number of times that a subject failed to input a response within the time limit."
+                },
+                {
+                  "name": "anticipations",
+                  "type": "int",
+                  "doc": "The number of responses within 100ms of stimulus presentation."
+                },
+                {
+                  "name": "incorrect",
+                  "type": "int",
+                  "doc": "The number of incorrect response."
+                },
+                {
+                  "name": "inputType",
+                  "type": "ThincItInputType",
+                  "doc": "Dominant input type used by the subject to answer.",
+                  "default": "UNKNOWN"
+                }
+              ]
+            },
+            "doc": "Trial summary for SymbolCheck assessment Quarter 1."
+          },
+          {
+            "name": "quarterSummaryTwo",
+            "type": "ThincItSpotterQuarterSummary",
+            "doc": "Trial summary for SymbolCheck assessment Quarter 2."
+          },
+          {
+            "name": "quarterSummaryThree",
+            "type": "ThincItSpotterQuarterSummary",
+            "doc": "Trial summary for SymbolCheck assessment Quarter 3."
+          },
+          {
+            "name": "quarterSummaryFour",
+            "type": "ThincItSpotterQuarterSummary",
+            "doc": "Trial summary for SymbolCheck assessment Quarter 4."
+          },
+          {
+            "name": "appVersion",
+            "type": "int",
+            "doc": "App version."
+          }
+        ]
+      },
+      "doc": "Value of a Kafka SinkRecord"
+    }
+  ]
+}

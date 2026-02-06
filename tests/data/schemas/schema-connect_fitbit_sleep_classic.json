@@ -1,0 +1,94 @@
+{
+  "type": "record",
+  "name": "FitbitSleepClassic",
+  "namespace": "org.radarcns.kafka.ObservationKey_org.radarcns.connector.fitbit",
+  "doc": "combined key-value record",
+  "fields": [
+    {
+      "name": "key",
+      "type": {
+        "type": "record",
+        "name": "ObservationKey",
+        "namespace": "org.radarcns.kafka",
+        "doc": "Key of an observation.",
+        "fields": [
+          {
+            "name": "projectId",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "avro.java.string": "String"
+              }
+            ],
+            "doc": "Project identifier. Null if unknown or the user is not enrolled in a project.",
+            "default": null
+          },
+          {
+            "name": "userId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "User Identifier created during the enrolment."
+          },
+          {
+            "name": "sourceId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "Unique identifier associated with the source."
+          }
+        ]
+      },
+      "doc": "Key of a Kafka SinkRecord"
+    },
+    {
+      "name": "value",
+      "type": {
+        "type": "record",
+        "name": "FitbitSleepClassic",
+        "namespace": "org.radarcns.connector.fitbit",
+        "doc": "Classic sleep data as defined at https://dev.fitbit.com/build/reference/web-api/sleep/. This is generally returned for devices without a heart rate sensor. Deduce absolute times using the timezone at the time of the measurement.",
+        "fields": [
+          {
+            "name": "dateTime",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "ISO 6801 formatted local date time of device (yyyy-MM-ddTHH:mm:ss)."
+          },
+          {
+            "name": "timeReceived",
+            "type": "double",
+            "doc": "Time that the data was received from the Fitbit API (seconds since the Unix Epoch)."
+          },
+          {
+            "name": "duration",
+            "type": "int",
+            "doc": "Duration at this sleep characteristic in seconds."
+          },
+          {
+            "name": "level",
+            "type": {
+              "type": "enum",
+              "name": "FitbitSleepClassicLevel",
+              "doc": "Level of sleep as computed by Fitbit.",
+              "symbols": [
+                "AWAKE",
+                "RESTLESS",
+                "ASLEEP",
+                "UNKNOWN"
+              ]
+            },
+            "doc": "Level of sleep as computed by Fitbit.",
+            "default": "UNKNOWN"
+          }
+        ]
+      },
+      "doc": "Value of a Kafka SinkRecord"
+    }
+  ]
+}

@@ -1,0 +1,421 @@
+{
+  "type": "record",
+  "name": "FitbitActivityLogRecord",
+  "namespace": "org.radarcns.kafka.ObservationKey_org.radarcns.connector.fitbit",
+  "doc": "combined key-value record",
+  "fields": [
+    {
+      "name": "key",
+      "type": {
+        "type": "record",
+        "name": "ObservationKey",
+        "namespace": "org.radarcns.kafka",
+        "doc": "Key of an observation.",
+        "fields": [
+          {
+            "name": "projectId",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "avro.java.string": "String"
+              }
+            ],
+            "doc": "Project identifier. Null if unknown or the user is not enrolled in a project.",
+            "default": null
+          },
+          {
+            "name": "userId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "User Identifier created during the enrolment."
+          },
+          {
+            "name": "sourceId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "Unique identifier associated with the source."
+          }
+        ]
+      },
+      "doc": "Key of a Kafka SinkRecord"
+    },
+    {
+      "name": "value",
+      "type": {
+        "type": "record",
+        "name": "FitbitActivityLogRecord",
+        "namespace": "org.radarcns.connector.fitbit",
+        "doc": "Fitbit Activity Log record, containing the aggregate data of a single activity. This data is preprocessed by Fitbit, using algorithms based on the intraday data.",
+        "fields": [
+          {
+            "name": "time",
+            "type": "double",
+            "doc": "Start time of the activity, time since the Unix Epoch (s)."
+          },
+          {
+            "name": "timeReceived",
+            "type": "double",
+            "doc": "Time that this record was collected by a connector. Start time of the activity, seconds since the Unix Epoch (s)."
+          },
+          {
+            "name": "timeZoneOffset",
+            "type": "int",
+            "doc": "Time zone offset compared to UTC (s)."
+          },
+          {
+            "name": "timeLastModified",
+            "type": "double",
+            "doc": "Time when the record was last modified, time since the Unix Epoch (s)."
+          },
+          {
+            "name": "duration",
+            "type": "float",
+            "doc": "Duration of the activity (s)."
+          },
+          {
+            "name": "durationActive",
+            "type": "float",
+            "doc": "Duration of the part of the activity where the participant was active (s)."
+          },
+          {
+            "name": "id",
+            "type": "long",
+            "doc": "Activity log ID."
+          },
+          {
+            "name": "name",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "avro.java.string": "String"
+              }
+            ],
+            "doc": "Activity name. Null if none or unknown.",
+            "default": null
+          },
+          {
+            "name": "logType",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "avro.java.string": "String"
+              }
+            ],
+            "doc": "Type of log, e.g. manual. Null if unknown.",
+            "default": null
+          },
+          {
+            "name": "type",
+            "type": [
+              "null",
+              "long"
+            ],
+            "doc": "Fitbit-generated ID of the type of activity. Null if unknown.",
+            "default": null
+          },
+          {
+            "name": "source",
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "FitbitSource",
+                "doc": "A single fitbit source, e.g. a watch or an app.",
+                "fields": [
+                  {
+                    "name": "id",
+                    "type": {
+                      "type": "string",
+                      "avro.java.string": "String"
+                    },
+                    "doc": "Source id."
+                  },
+                  {
+                    "name": "name",
+                    "type": [
+                      "null",
+                      {
+                        "type": "string",
+                        "avro.java.string": "String"
+                      }
+                    ],
+                    "doc": "Source name. Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "type",
+                    "type": [
+                      "null",
+                      {
+                        "type": "string",
+                        "avro.java.string": "String"
+                      }
+                    ],
+                    "doc": "Source type. Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "url",
+                    "type": [
+                      "null",
+                      {
+                        "type": "string",
+                        "avro.java.string": "String"
+                      }
+                    ],
+                    "doc": "Source URL. Null if unknown.",
+                    "default": null
+                  }
+                ]
+              }
+            ],
+            "doc": "Source of the data. Null if unknown.",
+            "default": null
+          },
+          {
+            "name": "manualDataEntry",
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "FitbitManualDataEntry",
+                "doc": "Indicates values in an activity log that are entered manually by the user, instead of being automatically collected by a device.",
+                "fields": [
+                  {
+                    "name": "distance",
+                    "type": [
+                      "null",
+                      "boolean"
+                    ],
+                    "doc": "Whether the distance field was manually entered. Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "energy",
+                    "type": [
+                      "null",
+                      "boolean"
+                    ],
+                    "doc": "Whether the energy field was manually entered. Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "steps",
+                    "type": [
+                      "null",
+                      "boolean"
+                    ],
+                    "doc": "Whether the steps field was manually entered. Null if unknown.",
+                    "default": null
+                  }
+                ]
+              }
+            ],
+            "doc": "Indicates what values of this record are entered manually. Null if unknown.",
+            "default": null
+          },
+          {
+            "name": "energy",
+            "type": [
+              "null",
+              "float"
+            ],
+            "doc": "Estimated of energy expended during the activity (kJ). Null if unknown.",
+            "default": null
+          },
+          {
+            "name": "levels",
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "FitbitActivityLevels",
+                "doc": "Aggregate activity levels during an activity.",
+                "fields": [
+                  {
+                    "name": "durationSedentary",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Duration that the activity level was considered sedentary (s). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "durationLightly",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Duration that the activity level was considered light (s). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "durationFairly",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Duration that the activity level was considered fair (s). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "durationVery",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Duration that the activity level was considered very high (s). Null if unknown.",
+                    "default": null
+                  }
+                ]
+              }
+            ],
+            "doc": "Levels of activity. Null if unknown.",
+            "default": null
+          },
+          {
+            "name": "heartRate",
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "FitbitActivityHeartRate",
+                "doc": "Aggregate heart rate as measured over an activity. The heart rates are divided amongst so-called heart rate zones. A heart rate zone is a range of heart rates and it does not overlap with other heart rate zones. These zones are called, in order of increasing heart rate, 'Out of Range', 'Fat Burn', 'Cardio', and 'Peak'. Fitbit uses the common formula of 220 minus your age to estimate your maximum heart rate. The 'Out of Range' zone has heart rates up to 50 percent of maximum heart rate, the 'Fat Burn' has heart rates up to 70 percent of maximum heart rate, 'Cardio' up to 85 percent of maximum heart rate and the 'Peak' range has heart rates higher than that.",
+                "fields": [
+                  {
+                    "name": "mean",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Mean heart rate over the duration of an activity (bpm). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "min",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Minimum heart rate for the duration of an activity (bpm). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "max",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Maximum heart rate for the duration of an activity (bpm). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "minFatBurn",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Threshold heart rate above which a the heart rate is considered in the heart rate zone 'Fat Burn' (bpm), up to the value of the minCardio field. Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "minCardio",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Threshold heart rate above which a the heart rate is considered in the heart rate zone 'Cardio' (bpm), up to the value of the minPeak field. Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "minPeak",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Threshold heart rate above which a the heart rate is considered in the heart rate zone 'Peak' (bpm). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "durationOutOfRange",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Duration in the heart rate zone 'Out Of Range', which is the lowest heart rate zone (s). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "durationFatBurn",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Duration in the heart rate zone 'Fat Burn', which is the second lowest heart rate zone (s). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "durationCardio",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Duration in the heart rate zone 'Cardio', which is the third lowest heart rate zone (s). Null if unknown.",
+                    "default": null
+                  },
+                  {
+                    "name": "durationPeak",
+                    "type": [
+                      "null",
+                      "int"
+                    ],
+                    "doc": "Duration in the heart rate zone 'Peak', which is the highest heart rate zone (s). Null if unknown.",
+                    "default": null
+                  }
+                ]
+              }
+            ],
+            "doc": "Heart rate aggregate information collected during the activity. Null if unknown.",
+            "default": null
+          },
+          {
+            "name": "steps",
+            "type": [
+              "null",
+              "int"
+            ],
+            "doc": "Number of steps made during the activity. Null if unknown or if the type of activity is not step-based.",
+            "default": null
+          },
+          {
+            "name": "distance",
+            "type": [
+              "null",
+              "float"
+            ],
+            "doc": "Distance covered during the activity (km). Null if unknown or if the type of activity is not distance-based.",
+            "default": null
+          },
+          {
+            "name": "speed",
+            "type": [
+              "null",
+              "double"
+            ],
+            "doc": "Mean speed during the activity (km/h). Null if unknown or if the type of activity is not distance-based.",
+            "default": null
+          }
+        ]
+      },
+      "doc": "Value of a Kafka SinkRecord"
+    }
+  ]
+}

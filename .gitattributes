@@ -1,1 +1,2 @@
 uv.lock linguist-generated -diff
+tests/data/schemas/** linguist-generated -diff

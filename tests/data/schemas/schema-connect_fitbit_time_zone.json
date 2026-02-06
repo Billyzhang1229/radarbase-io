@@ -1,0 +1,74 @@
+{
+  "type": "record",
+  "name": "FitbitTimeZone",
+  "namespace": "org.radarcns.kafka.ObservationKey_org.radarcns.connector.fitbit",
+  "doc": "combined key-value record",
+  "fields": [
+    {
+      "name": "key",
+      "type": {
+        "type": "record",
+        "name": "ObservationKey",
+        "namespace": "org.radarcns.kafka",
+        "doc": "Key of an observation.",
+        "fields": [
+          {
+            "name": "projectId",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "avro.java.string": "String"
+              }
+            ],
+            "doc": "Project identifier. Null if unknown or the user is not enrolled in a project.",
+            "default": null
+          },
+          {
+            "name": "userId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "User Identifier created during the enrolment."
+          },
+          {
+            "name": "sourceId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "Unique identifier associated with the source."
+          }
+        ]
+      },
+      "doc": "Key of a Kafka SinkRecord"
+    },
+    {
+      "name": "value",
+      "type": {
+        "type": "record",
+        "name": "FitbitTimeZone",
+        "namespace": "org.radarcns.connector.fitbit",
+        "doc": "Fitbit profile time zone at the current time. This can be used to estimate the UTC time for the Sleep API.",
+        "fields": [
+          {
+            "name": "timeReceived",
+            "type": "double",
+            "doc": "Time that the data was received from the Fitbit API (seconds since the Unix Epoch)."
+          },
+          {
+            "name": "timeZoneOffset",
+            "type": [
+              "null",
+              "int"
+            ],
+            "doc": "Offset from UTC (s). If unknown, this is null.",
+            "default": null
+          }
+        ]
+      },
+      "doc": "Value of a Kafka SinkRecord"
+    }
+  ]
+}
