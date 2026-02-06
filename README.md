@@ -12,21 +12,53 @@ uv sync --dev
 ## Storage configuration
 
 This project uses `fsspec`-style URLs so the same code can read from SFTP, S3,
-or local paths. Configure the root with an environment variable (use
-`.env.local`, which is gitignored), and keep credentials in native tools (SSH
-config for SFTP, AWS credentials for S3).
-
-Example `.env.local`:
-
-```
-RADARBASE_STORAGE_URL=sftp://radarbase/path/to/project
-RADARBASE_STORAGE_OPTIONS={"anon": false}
-```
+or local paths. Keep credentials in native tools where possible (for example,
+SSH config + ssh-agent for SFTP).
 
 Example URLs:
 - `sftp://radarbase/path/to/project`
 - `s3://my-bucket/path/to/project`
 - `/data/radar` (local path)
+
+## Build index example (local + remote)
+
+Local usage with explicit path:
+
+```bash
+./.venv/bin/python examples/build_index.py /data/radar/project
+```
+
+Local usage with mockdata fixture:
+
+```bash
+./.venv/bin/python examples/build_index.py tests/data/mockdata/mockdata
+```
+
+Remote usage:
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Edit `.env` and set:
+   - `HOST_NAME`
+   - `USER_NAME`
+   - `KEY_PATH`
+3. Recommended: load your encrypted SSH key into `ssh-agent`:
+   ```bash
+   ssh-add "$KEY_PATH"
+   ```
+4. Optional fallback (not recommended): set `SSH_KEY_PASSWORD` in `.env`.
+5. Optional: set `RADARBASE_STORAGE_OPTIONS` as JSON for extra sshfs options
+   (for example `{"connect_timeout": 20, "login_timeout": 20}`).
+6. Run the example in mock mode first:
+   ```bash
+   ./.venv/bin/python examples/build_index.py /your/remote/project/path --remote
+   ```
+7. Run the live remote call:
+   ```bash
+   ./.venv/bin/python examples/build_index.py /your/remote/project/path --remote --live
+   ```
 
 ## Test data
 
