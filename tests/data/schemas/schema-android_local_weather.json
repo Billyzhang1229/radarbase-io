@@ -1,0 +1,190 @@
+{
+  "type": "record",
+  "name": "LocalWeather",
+  "namespace": "org.radarcns.kafka.ObservationKey_org.radarcns.passive.weather",
+  "doc": "combined key-value record",
+  "fields": [
+    {
+      "name": "key",
+      "type": {
+        "type": "record",
+        "name": "ObservationKey",
+        "namespace": "org.radarcns.kafka",
+        "doc": "Key of an observation.",
+        "fields": [
+          {
+            "name": "projectId",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "avro.java.string": "String"
+              }
+            ],
+            "doc": "Project identifier. Null if unknown or the user is not enrolled in a project.",
+            "default": null
+          },
+          {
+            "name": "userId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "User Identifier created during the enrolment."
+          },
+          {
+            "name": "sourceId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "Unique identifier associated with the source."
+          }
+        ]
+      },
+      "doc": "Key of a Kafka SinkRecord"
+    },
+    {
+      "name": "value",
+      "type": {
+        "type": "record",
+        "name": "LocalWeather",
+        "namespace": "org.radarcns.passive.weather",
+        "doc": "Current weather information at the location of the user.",
+        "fields": [
+          {
+            "name": "time",
+            "type": "double",
+            "doc": "Device timestamp in UTC (s)."
+          },
+          {
+            "name": "timeReceived",
+            "type": "double",
+            "doc": "Device receiver timestamp in UTC (s)."
+          },
+          {
+            "name": "sunrise",
+            "type": [
+              "null",
+              "int"
+            ],
+            "doc": "Sunrise time of day in minutes after midnight. The difference with sunset is the minutes of daylight.",
+            "default": null
+          },
+          {
+            "name": "sunset",
+            "type": [
+              "null",
+              "int"
+            ],
+            "doc": "Sunset time of day in minutes after midnight. The difference with sunrise is the minutes of daylight.",
+            "default": null
+          },
+          {
+            "name": "temperature",
+            "type": [
+              "null",
+              "float"
+            ],
+            "doc": "Current ambient temperature (C).",
+            "default": null
+          },
+          {
+            "name": "pressure",
+            "type": [
+              "null",
+              "float"
+            ],
+            "doc": "Current atmospheric pressure on sea level (hPa).",
+            "default": null
+          },
+          {
+            "name": "humidity",
+            "type": [
+              "null",
+              "float"
+            ],
+            "doc": "Current humidity (%).",
+            "default": null
+          },
+          {
+            "name": "cloudiness",
+            "type": [
+              "null",
+              "float"
+            ],
+            "doc": "Current cloudiness (%).",
+            "default": null
+          },
+          {
+            "name": "precipitation",
+            "type": [
+              "null",
+              "float"
+            ],
+            "doc": "Rain or snow volume over last hours reported in 'percipitationPeriod' (mm).",
+            "default": null
+          },
+          {
+            "name": "precipitationPeriod",
+            "type": [
+              "null",
+              "int"
+            ],
+            "doc": "Period over which the precipitation was determined (h).",
+            "default": null
+          },
+          {
+            "name": "condition",
+            "type": {
+              "type": "enum",
+              "name": "WeatherCondition",
+              "doc": "Types of weather condition.",
+              "symbols": [
+                "CLEAR",
+                "CLOUDY",
+                "DRIZZLE",
+                "RAINY",
+                "SNOWY",
+                "ICY",
+                "FOGGY",
+                "STORM",
+                "THUNDER",
+                "OTHER",
+                "UNKNOWN"
+              ]
+            },
+            "doc": "Current weather condition.",
+            "default": "UNKNOWN"
+          },
+          {
+            "name": "source",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "From which source/API the weather data was retrieved."
+          },
+          {
+            "name": "locationSource",
+            "type": {
+              "type": "enum",
+              "name": "LocationType",
+              "doc": "How the location was determined.",
+              "symbols": [
+                "GPS",
+                "NETWORK",
+                "CITY_NAME",
+                "OTHER",
+                "UNKNOWN"
+              ]
+            },
+            "doc": "The source of the location used to get the weather details.",
+            "default": "UNKNOWN"
+          }
+        ]
+      },
+      "doc": "Value of a Kafka SinkRecord"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "type": "record",
+  "name": "FitbitIntradayHeartRate",
+  "namespace": "org.radarcns.kafka.ObservationKey_org.radarcns.connector.fitbit",
+  "doc": "combined key-value record",
+  "fields": [
+    {
+      "name": "key",
+      "type": {
+        "type": "record",
+        "name": "ObservationKey",
+        "namespace": "org.radarcns.kafka",
+        "doc": "Key of an observation.",
+        "fields": [
+          {
+            "name": "projectId",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "avro.java.string": "String"
+              }
+            ],
+            "doc": "Project identifier. Null if unknown or the user is not enrolled in a project.",
+            "default": null
+          },
+          {
+            "name": "userId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "User Identifier created during the enrolment."
+          },
+          {
+            "name": "sourceId",
+            "type": {
+              "type": "string",
+              "avro.java.string": "String"
+            },
+            "doc": "Unique identifier associated with the source."
+          }
+        ]
+      },
+      "doc": "Key of a Kafka SinkRecord"
+    },
+    {
+      "name": "value",
+      "type": {
+        "type": "record",
+        "name": "FitbitIntradayHeartRate",
+        "namespace": "org.radarcns.connector.fitbit",
+        "doc": "Intra day heart rate data from fitbit device.",
+        "fields": [
+          {
+            "name": "time",
+            "type": "double",
+            "doc": "Device timestamp in UTC (s)."
+          },
+          {
+            "name": "timeReceived",
+            "type": "double",
+            "doc": "Time that the data was received from the Fitbit API (seconds since the Unix Epoch)."
+          },
+          {
+            "name": "timeInterval",
+            "type": "int",
+            "doc": "Chronological window size (s)."
+          },
+          {
+            "name": "heartRate",
+            "type": "int",
+            "doc": "Heart rate value (bpm)."
+          }
+        ]
+      },
+      "doc": "Value of a Kafka SinkRecord"
+    }
+  ]
+}

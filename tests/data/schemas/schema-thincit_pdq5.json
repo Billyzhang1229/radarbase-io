@@ -1,0 +1,107 @@
+{
+  "type": "record",
+  "name": "ThincItPdq",
+  "namespace": "org.radarcns.kafka.ObservationKey_org.radarcns.active.thincit",
+  "doc": "combined key-value record",
+  "fields": [
+    {
+      "name": "key",
+      "type": {
+        "type": "record",
+        "name": "ObservationKey",
+        "namespace": "org.radarcns.kafka",
+        "doc": "Key of an observation.",
+        "fields": [
+          {
+            "name": "projectId",
+            "type": [
+              "null",
+              "string"
+            ],
+            "doc": "Project identifier. Null if unknown or the user is not enrolled in a project.",
+            "default": null
+          },
+          {
+            "name": "userId",
+            "type": "string",
+            "doc": "User Identifier created during the enrolment."
+          },
+          {
+            "name": "sourceId",
+            "type": "string",
+            "doc": "Unique identifier associated with the source."
+          }
+        ]
+      },
+      "doc": "Key of a Kafka SinkRecord"
+    },
+    {
+      "name": "value",
+      "type": {
+        "type": "record",
+        "name": "ThincItPdq",
+        "namespace": "org.radarcns.active.thincit",
+        "doc": "THINC-it Assessment derived from PDQ5.",
+        "fields": [
+          {
+            "name": "time",
+            "type": "double",
+            "doc": "Timestamp in UTC (s) when the test is submitted to the subject."
+          },
+          {
+            "name": "timeCompleted",
+            "type": "double",
+            "doc": "Timestamp in UTC (s) when the subject completes the test."
+          },
+          {
+            "name": "score",
+            "type": "int",
+            "doc": "THINC-it index score - 0 to 4000."
+          },
+          {
+            "name": "questionOne",
+            "type": {
+              "type": "enum",
+              "name": "ThincItPdqQuestion",
+              "doc": "PDQ5 question.",
+              "symbols": [
+                "NEVER",
+                "RARELY",
+                "SOMETIMES",
+                "OFTEN",
+                "VERYOFTEN"
+              ]
+            },
+            "doc": "PDQ5 Question 1."
+          },
+          {
+            "name": "questionTwo",
+            "type": "ThincItPdqQuestion",
+            "doc": "PDQ5 Question 2."
+          },
+          {
+            "name": "questionThree",
+            "type": "ThincItPdqQuestion",
+            "doc": "PDQ5 Question 3."
+          },
+          {
+            "name": "questionFour",
+            "type": "ThincItPdqQuestion",
+            "doc": "PDQ5 Question 4."
+          },
+          {
+            "name": "questionFive",
+            "type": "ThincItPdqQuestion",
+            "doc": "PDQ5 Question 5."
+          },
+          {
+            "name": "appVersion",
+            "type": "int",
+            "doc": "App version."
+          }
+        ]
+      },
+      "doc": "Value of a Kafka SinkRecord"
+    }
+  ]
+}
