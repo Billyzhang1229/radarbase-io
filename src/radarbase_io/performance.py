@@ -1,6 +1,7 @@
 """Acceleration helpers (Dask/Numba/JIT related)."""
 
 from dask import compute
+from dask.base import is_dask_collection
 from dask.delayed import Delayed
 from dask.distributed import progress
 
@@ -8,7 +9,7 @@ from dask.distributed import progress
 def _normalize_tasks(tasks):
     if tasks is None:
         return []
-    if isinstance(tasks, Delayed):
+    if isinstance(tasks, Delayed) or is_dask_collection(tasks):
         return [tasks]
     try:
         return list(tasks)

@@ -1,5 +1,7 @@
 """Tests for performance helpers."""
 
+import dask.dataframe as dd
+import pandas as pd
 from dask import delayed
 
 import radarbase_io.performance as perf
@@ -38,6 +40,16 @@ def test_compute_dask_local_compute():
     assert out == [2, "ok"]
 
 
+def test_compute_dask_single_dask_collection():
+    expected = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
+    ddf = dd.from_pandas(expected, npartitions=1)
+
+    out = compute_dask(ddf, scheduler="threads")
+
+    assert len(out) == 1
+    pd.testing.assert_frame_equal(out[0].reset_index(drop=True), expected)
+
+
 class _FakeClient:
     def __init__(self):
         self.computed = None
@@ -73,4 +85,15 @@ def test_compute_dask_client_with_progress(monkeypatch):
     out = compute_dask([task], client=client, show_progress=True)
 
     assert seen["futures"] == [("future", 0)]
+    assert out == ["result-0"]
+
+
+def test_compute_dask_client_single_dask_collection_not_iterated():
+    ddf = dd.from_pandas(pd.DataFrame({"a": [1], "b": [2]}), npartitions=1)
+    client = _FakeClient()
+
+    out = compute_dask(ddf, client=client)
+
+    assert len(client.computed) == 1
+    assert client.computed[0] is ddf
     assert out == ["result-0"]
