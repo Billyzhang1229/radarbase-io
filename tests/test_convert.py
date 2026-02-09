@@ -3,14 +3,17 @@
 import csv
 import gzip
 import json
+import math
 from pathlib import Path
 
 import fsspec
 import pandas as pd
 import pyarrow as pa
 import pytest
+from dask.utils import parse_bytes
 
 import radarbase_io.convert as convert_module
+import radarbase_io.fs as fs_module
 from radarbase_io.convert import csv_to_parquet
 from radarbase_io.schema import build_schema
 
@@ -190,6 +193,38 @@ def test_csv_to_parquet_dataset_mode_local(tmp_path):
     assert list(df.columns) == schema["columns"]
 
 
+def test_csv_to_parquet_dataset_mode_repartition_npartitions(tmp_path):
+    schema = _build_schema_output(tmp_path)
+    input_file = tmp_path / "only.csv.gz"
+    _write_csv(
+        input_file,
+        [
+            {
+                "key.projectId": "projA",
+                "key.userId": f"u{i}",
+                "value.time": float(i),
+                "value.count": i,
+                "value.flag": "true",
+                "value.note": f"n{i}",
+            }
+            for i in range(8)
+        ],
+    )
+
+    output_dir = tmp_path / "dataset_repartition_out"
+    result = csv_to_parquet(
+        [input_file],
+        output_path=output_dir,
+        schema=schema,
+        output_mode="dataset",
+        repartition=3,
+    )
+
+    part_files = sorted(output_dir.glob("*.parquet"))
+    assert result["output_mode"] == "dataset"
+    assert len(part_files) == 3
+
+
 def test_csv_to_parquet_with_explicit_fs(tmp_path):
     schema = _build_schema_output(tmp_path)
     input_file = tmp_path / "input.csv.gz"
@@ -220,6 +255,64 @@ def test_csv_to_parquet_with_explicit_fs(tmp_path):
 
     assert result["files_processed"] == 1
     assert output_file.exists()
+
+
+def test_csv_to_parquet_file_mode_memory_fs(tmp_path):
+    schema = _build_schema_output(tmp_path)
+    fs = fsspec.filesystem("memory")
+
+    root = f"bucket/{tmp_path.name}"
+    input_path = f"{root}/input.csv"
+    output_path = f"{root}/out.parquet"
+
+    with fs.open(input_path, "wt", encoding="utf-8") as handle:
+        handle.write("key.projectId,key.userId,value.time,value.count\n")
+        handle.write("projA,u1,1.0,1\n")
+        handle.write("projA,u2,2.0,2.5\n")
+
+    result = csv_to_parquet(
+        [f"memory://{input_path}"],
+        output_path=f"memory://{output_path}",
+        schema=schema,
+        fs=fs,
+        output_mode="file",
+    )
+
+    assert result["files_processed"] == 1
+    assert result["rows_written"] == 2
+    assert fs.exists(output_path)
+
+    with fs.open(output_path, "rb") as handle:
+        df = pd.read_parquet(handle)
+
+    assert len(df) == 2
+    assert pd.isna(df.loc[1, "value.count"])
+
+
+def test_csv_to_parquet_explicit_fs_local_output_path(tmp_path):
+    schema = _build_schema_output(tmp_path)
+    fs = fsspec.filesystem("memory")
+
+    input_path = "bucket/inputs/input.csv"
+    with fs.open(input_path, "wt", encoding="utf-8") as handle:
+        handle.write("key.projectId,key.userId,value.time,value.count\n")
+        handle.write("projA,u1,1.0,1\n")
+
+    output_file = tmp_path / "local-output.parquet"
+    result = csv_to_parquet(
+        [f"memory://{input_path}"],
+        output_path=output_file,
+        schema=schema,
+        fs=fs,
+        output_mode="file",
+    )
+
+    assert result["files_processed"] == 1
+    assert output_file.exists()
+    assert not fs.exists(str(output_file))
+
+    df = pd.read_parquet(output_file)
+    assert len(df) == 1
 
 
 def test_csv_to_parquet_rejects_fs_and_storage_options(tmp_path):
@@ -384,6 +477,67 @@ def test_csv_to_parquet_questionnaire_with_observed_columns(tmp_path):
     assert df[answer_columns].notna().any().any()
 
 
+def test_csv_to_parquet_auto_expands_array_record_columns_from_headers(tmp_path):
+    schema_path = (
+        _repo_root() / "tests" / "data" / "schemas" / "schema-questionnaire_phq8.json"
+    )
+    if not schema_path.exists():
+        pytest.skip("PHQ8 schema fixture not found")
+
+    schema = build_schema(schema_path)
+    assert "value.answers" in schema["columns"]
+
+    input_file = tmp_path / "phq8.csv.gz"
+    _write_csv(
+        input_file,
+        [
+            {
+                "key.projectId": "proj",
+                "key.userId": "user-1",
+                "key.sourceId": "source-1",
+                "value.time": 1.0,
+                "value.timeCompleted": 2.0,
+                "value.timeNotification": 0.5,
+                "value.name": "PHQ8",
+                "value.version": "0.2.0",
+                "value.answers.0.questionId": "phq8_1",
+                "value.answers.0.value": 1,
+                "value.answers.0.startTime": 1.1,
+                "value.answers.0.endTime": 1.2,
+                "value.answers.1.questionId": "phq8_2",
+                "value.answers.1.value": 2,
+                "value.answers.1.startTime": 1.3,
+                "value.answers.1.endTime": 1.4,
+            }
+        ],
+    )
+
+    output_file = tmp_path / "questionnaire-phq8-auto-expand.parquet"
+    result = csv_to_parquet(
+        [input_file],
+        output_path=output_file,
+        schema=schema,
+        output_mode="file",
+    )
+
+    df = pd.read_parquet(output_file)
+    expected_columns = [
+        "value.answers.0.questionId",
+        "value.answers.0.value",
+        "value.answers.0.startTime",
+        "value.answers.0.endTime",
+        "value.answers.1.questionId",
+        "value.answers.1.value",
+        "value.answers.1.startTime",
+        "value.answers.1.endTime",
+    ]
+
+    assert "value.answers" not in result["columns"]
+    assert all(column in result["columns"] for column in expected_columns)
+    assert all(column in df.columns for column in expected_columns)
+    assert df.loc[0, "value.answers.1.questionId"] == "phq8_2"
+
+
 def test_convert_private_path_helpers():
     assert convert_module._split_parent_name("out.parquet") == ("", "out.parquet")
     assert convert_module._join_fs_path("", "out.parquet") == "out.parquet"
@@ -434,6 +588,11 @@ def test_validate_schema_error_paths():
     with pytest.raises(ValueError, match="column order must match"):
         convert_module._validate_schema(bad)
 
+    bad = dict(base)
+    bad["array_record_dtypes"] = []
+    with pytest.raises(ValueError, match="array_record_dtypes"):
+        convert_module._validate_schema(bad)
+
 
 def test_read_batch_error_and_empty_paths(tmp_path):
     columns = ["a"]
@@ -469,6 +628,83 @@ def test_read_batch_with_fs_json(tmp_path):
     assert out.iloc[0, 0] == "x"
 
 
+def test_read_batch_with_fs_json_reuses_cached_fs(monkeypatch, tmp_path):
+    fs_module._clear_fs_json_cache()
+    columns = ["a"]
+    dtypes = {"a": "string"}
+    input_a = tmp_path / "a.csv"
+    input_b = tmp_path / "b.csv"
+    input_a.write_text("a\nx\n")
+    input_b.write_text("a\ny\n")
+
+    real_fs_from_json = fs_module.fs_from_json
+    calls = {"count": 0}
+
+    def counted_fs_from_json(fs_json):
+        calls["count"] += 1
+        return real_fs_from_json(fs_json)
+
+    monkeypatch.setattr(fs_module, "fs_from_json", counted_fs_from_json)
+
+    fs = fsspec.filesystem("file")
+    out = convert_module._read_batch(
+        [str(input_a), str(input_b)],
+        columns,
+        dtypes,
+        fs_json=fs.to_json(),
+    )
+
+    assert len(out) == 2
+    assert calls["count"] == 1
+    fs_module._clear_fs_json_cache()
+
+
+def test_read_batch_with_fs_json_retries_connection_errors(monkeypatch, tmp_path):
+    columns = ["a"]
+    dtypes = {"a": "string"}
+    input_file = tmp_path / "tiny.csv"
+    input_file.write_text("a\nx\n")
+
+    fs = fsspec.filesystem("file")
+    real_fs_from_json = fs_module.fs_from_json
+    first_fs = real_fs_from_json(fs.to_json())
+
+    class FailingOnceFs:
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.failed = False
+
+        def open(self, path, mode):
+            if not self.failed:
+                self.failed = True
+                raise ConnectionError("Connection lost")
+            return self.wrapped.open(path, mode)
+
+    calls = {"count": 0}
+    retry_fs = FailingOnceFs(first_fs)
+
+    def fake_fs_from_json(_fs_json):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return retry_fs
+        return real_fs_from_json(fs.to_json())
+
+    fs_module._clear_fs_json_cache()
+    monkeypatch.setattr(fs_module, "fs_from_json", fake_fs_from_json)
+
+    out = convert_module._read_batch(
+        [str(input_file)],
+        columns,
+        dtypes,
+        fs_json=fs.to_json(),
+    )
+
+    assert list(out.columns) == columns
+    assert out.iloc[0, 0] == "x"
+    assert calls["count"] == 2
+    fs_module._clear_fs_json_cache()
+
+
 def test_prepare_target_creates_parent_dir_with_memory_fs():
     fs = fsspec.filesystem("memory")
     output_path = "bucket/newdir/out.parquet"
@@ -485,6 +721,126 @@ def test_csv_to_parquet_invalid_output_mode(tmp_path):
             schema=schema,
             output_mode="bad",
         )
+
+
+def test_csv_to_parquet_repartition_validation(tmp_path):
+    schema = _build_schema_output(tmp_path)
+    input_file = tmp_path / "single.csv.gz"
+    _write_csv(
+        input_file,
+        [{"key.projectId": "projA", "key.userId": "u1", "value.time": 1.0}],
+    )
+
+    with pytest.raises(ValueError, match="only supported when output_mode='dataset'"):
+        csv_to_parquet(
+            [input_file],
+            output_path=tmp_path / "out.parquet",
+            schema=schema,
+            output_mode="file",
+            repartition=2,
+        )
+
+    with pytest.raises(ValueError, match="greater than 0"):
+        csv_to_parquet(
+            [input_file],
+            output_path=tmp_path / "out_dataset",
+            schema=schema,
+            output_mode="dataset",
+            repartition=0,
+        )
+
+    with pytest.raises(ValueError, match="None, a positive int, or a partition-size"):
+        csv_to_parquet(
+            [input_file],
+            output_path=tmp_path / "out_dataset_2",
+            schema=schema,
+            output_mode="dataset",
+            repartition=object(),
+        )
+
+
+def test_estimate_npartitions_from_size(tmp_path):
+    input_a = tmp_path / "a.csv"
+    input_b = tmp_path / "b.csv"
+    input_a.write_text("a\nx\n")
+    input_b.write_text("a\ny\n")
+
+    fs = fsspec.filesystem("file")
+    paths = [str(input_a), str(input_b)]
+
+    total = sum(fs.size(path) for path in paths)
+    expected = max(1, math.ceil(total / parse_bytes("16B")))
+    out = convert_module._estimate_npartitions_from_size(fs, paths, "16B")
+
+    assert out == expected
+
+
+def test_estimate_npartitions_from_size_uses_sampling():
+    class CountingFs:
+        def __init__(self):
+            self.calls = 0
+
+        def size(self, path):  # noqa: ARG002
+            self.calls += 1
+            return 1024
+
+    fs = CountingFs()
+    paths = [f"f{i}" for i in range(1000)]
+    out = convert_module._estimate_npartitions_from_size(
+        fs, paths, "1KB", sample_size=50
+    )
+
+    assert out > 0
+    assert fs.calls == 50
+
+
+def test_csv_to_parquet_repartition_string_with_client_uses_estimated_npartitions(
+    monkeypatch, tmp_path
+):
+    schema = _build_schema_output(tmp_path)
+    input_file = tmp_path / "single.csv.gz"
+    _write_csv(
+        input_file,
+        [{"key.projectId": "projA", "key.userId": "u1", "value.time": 1.0}],
+    )
+
+    class DummyClient:
+        pass
+
+    calls = {"npartitions": None}
+    real_repartition = convert_module.dd.DataFrame.repartition
+
+    def _capture_repartition(self, *args, **kwargs):
+        if "npartitions" in kwargs:
+            calls["npartitions"] = kwargs["npartitions"]
+        return real_repartition(self, *args, **kwargs)
+
+    monkeypatch.setattr(
+        convert_module,
+        "compute_dask",
+        lambda *args, **kwargs: [None, 1],  # noqa: ARG005
+    )
+    monkeypatch.setattr(
+        convert_module,
+        "_estimate_npartitions_from_size",
+        lambda fs, paths, size: 4,  # noqa: ARG005
+    )
+    monkeypatch.setattr(
+        convert_module.dd.DataFrame,
+        "repartition",
+        _capture_repartition,
+    )
+
+    csv_to_parquet(
+        [input_file],
+        output_path=tmp_path / "out_dataset",
+        schema=schema,
+        output_mode="dataset",
+        repartition="256MB",
+        client=DummyClient(),
+    )
+
+    assert calls["npartitions"] == 4
 
 
 def test_csv_to_parquet_string_csv_path(tmp_path):
@@ -529,7 +885,9 @@ def test_csv_to_parquet_no_resolved_csv_paths(monkeypatch, tmp_path):
     fs = fsspec.filesystem("file")
 
     def _fake_resolve_paths(paths, *, fs=None, storage_options=None):  # noqa: ARG001
-        return fs, ["only-output.parquet"]
+        if isinstance(paths, list):
+            return fs, []
+        return fsspec.filesystem("file"), ["only-output.parquet"]
 
     monkeypatch.setattr(convert_module, "resolve_paths", _fake_resolve_paths)
 
