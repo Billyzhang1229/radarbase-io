@@ -2,12 +2,13 @@
 
 from importlib import import_module
 
-__all__ = ["build_index", "build_schema", "list_participants"]
+__all__ = ["build_index", "build_schema", "list_participants", "csv_to_parquet"]
 
 _LAZY_ATTRS = {
     "build_index": (".index", "build_index"),
     "build_schema": (".schema", "build_schema"),
     "list_participants": (".layout", "list_participants"),
+    "csv_to_parquet": (".convert", "csv_to_parquet"),
 }
 
 
