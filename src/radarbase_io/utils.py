@@ -152,7 +152,9 @@ def coerce_series_dtype(series, dtype):
     if dtype in {"float32", "float64"}:
         return pd.to_numeric(series, errors="coerce").astype(dtype)
     if dtype == "Int64":
-        return pd.to_numeric(series, errors="coerce").astype("Int64")
+        numeric = pd.to_numeric(series, errors="coerce")
+        non_integral = numeric.notna() & (numeric % 1 != 0)
+        return numeric.mask(non_integral).astype("Int64")
     if dtype == "boolean":
         return coerce_boolean_series(series)
     if dtype == "string":

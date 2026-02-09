@@ -95,6 +95,18 @@ def test_coerce_series_dtype_numeric():
     assert pd.isna(int_out.iloc[1])
 
 
+def test_coerce_series_dtype_int_fractional_values():
+    series = pd.Series(["1", "2.5", "-3.0", "bad", None])
+    out = coerce_series_dtype(series, "Int64")
+
+    assert str(out.dtype) == "Int64"
+    assert out.iloc[0] == 1
+    assert pd.isna(out.iloc[1])
+    assert out.iloc[2] == -3
+    assert pd.isna(out.iloc[3])
+    assert pd.isna(out.iloc[4])
+
+
 def test_coerce_series_dtype_fallback():
     series = pd.Series(["a", "b", "a"])
     out = coerce_series_dtype(series, "category")
