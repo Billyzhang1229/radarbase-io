@@ -569,3 +569,11 @@ def test_build_schema_phq8_with_two_files_uses_answer_column_union(tmp_path):
     assert result["pandas_dtypes"]["value.answers.0.value"] == "object"
     assert result["pandas_dtypes"]["value.answers.0.startTime"] == "float64"
     assert result["pandas_dtypes"]["value.answers.0.endTime"] == "float64"
+
+    assert "array_record_dtypes" in result
+    assert result["array_record_dtypes"]["value.answers"] == {
+        "questionId": "object",
+        "value": "object",
+        "startTime": "float64",
+        "endTime": "float64",
+    }
