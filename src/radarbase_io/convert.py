@@ -43,6 +43,14 @@ def _infer_csv_compression(path):
     return None
 
 
+def _protocol_set(protocol):
+    if protocol is None:
+        return set()
+    if isinstance(protocol, (tuple, list, set)):
+        return {str(item) for item in protocol if item}
+    return {str(protocol)}
+
+
 def _pandas_dtype_to_arrow(dtype):
     mapping = {
         "string": pa.string(),
@@ -410,18 +418,29 @@ def csv_to_parquet(
             "repartition must be None, a positive int, or a partition-size string"
         )
 
+    input_fs, csv_fs_paths = resolve_paths(
+        csv_paths, fs=fs, storage_options=storage_options
+    )
+
     if fs is None:
-        io_fs, fs_paths = resolve_paths(
-            [*csv_paths, output_path], fs=fs, storage_options=storage_options
-        )
-        input_fs = io_fs
-        output_fs = io_fs
-        csv_fs_paths = fs_paths[:-1]
-        output_fs_path = fs_paths[-1]
+        output_protocol = fsspec.utils.get_protocol(os.fspath(output_path))
+        input_protocols = _protocol_set(getattr(input_fs, "protocol", None))
+        if not input_protocols:
+            input_protocols = {fsspec.utils.get_protocol(os.fspath(csv_paths[0]))}
+
+        if output_protocol == "file":
+            output_fs, output_paths = resolve_paths(output_path)
+        elif output_protocol in input_protocols:
+            output_fs, output_paths = resolve_paths(output_path, fs=input_fs)
+        else:
+            raise ValueError(
+                "Protocol mismatch: when fs is None, input and output protocols "
+                "must match unless output_path is local (file). "
+                f"Input protocol(s): {sorted(input_protocols)}, "
+                f"output protocol: {output_protocol}."
+            )
+        output_fs_path = output_paths[0]
     else:
-        input_fs, csv_fs_paths = resolve_paths(
-            csv_paths, fs=fs, storage_options=storage_options
-        )
         output_protocol = fsspec.utils.get_protocol(os.fspath(output_path))
         if output_protocol == "file":
             output_fs, output_paths = resolve_paths(output_path)

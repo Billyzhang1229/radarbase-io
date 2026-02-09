@@ -315,6 +315,77 @@ def test_csv_to_parquet_explicit_fs_local_output_path(tmp_path):
     assert len(df) == 1
 
 
+def test_csv_to_parquet_fs_none_remote_input_local_output_path(tmp_path):
+    schema = _build_schema_output(tmp_path)
+    fs = fsspec.filesystem("memory")
+
+    input_path = "bucket/fs-none-local/input.csv"
+    with fs.open(input_path, "wt", encoding="utf-8") as handle:
+        handle.write("key.projectId,key.userId,value.time,value.count\n")
+        handle.write("projA,u1,1.0,1\n")
+
+    output_file = tmp_path / "fs-none-local-output.parquet"
+    result = csv_to_parquet(
+        [f"memory://{input_path}"],
+        output_path=output_file,
+        schema=schema,
+        output_mode="file",
+    )
+
+    assert result["files_processed"] == 1
+    assert result["rows_written"] == 1
+    assert output_file.exists()
+    assert not fs.exists(str(output_file))
+
+    df = pd.read_parquet(output_file)
+    assert len(df) == 1
+
+
+def test_csv_to_parquet_fs_none_same_remote_protocol_output(tmp_path):
+    schema = _build_schema_output(tmp_path)
+    fs = fsspec.filesystem("memory")
+
+    root = f"bucket/{tmp_path.name}/same-protocol"
+    input_path = f"{root}/input.csv"
+    output_path = f"{root}/out.parquet"
+    with fs.open(input_path, "wt", encoding="utf-8") as handle:
+        handle.write("key.projectId,key.userId,value.time\n")
+        handle.write("projA,u1,1.0\n")
+
+    result = csv_to_parquet(
+        [f"memory://{input_path}"],
+        output_path=f"memory://{output_path}",
+        schema=schema,
+        output_mode="file",
+    )
+
+    assert result["files_processed"] == 1
+    assert result["rows_written"] == 1
+    assert fs.exists(output_path)
+
+    with fs.open(output_path, "rb") as handle:
+        df = pd.read_parquet(handle)
+    assert len(df) == 1
+
+
+def test_csv_to_parquet_fs_none_nonfile_protocol_mismatch(tmp_path):
+    schema = _build_schema_output(tmp_path)
+    fs = fsspec.filesystem("memory")
+
+    input_path = "bucket/fs-none-mismatch/input.csv"
+    with fs.open(input_path, "wt", encoding="utf-8") as handle:
+        handle.write("key.projectId,key.userId,value.time\n")
+        handle.write("projA,u1,1.0\n")
+
+    with pytest.raises(ValueError, match="Protocol mismatch"):
+        csv_to_parquet(
+            [f"memory://{input_path}"],
+            output_path="s3://bucket/out.parquet",
+            schema=schema,
+            output_mode="file",
+        )
+
+
 def test_csv_to_parquet_rejects_fs_and_storage_options(tmp_path):
     schema = _build_schema_output(tmp_path)
     input_file = tmp_path / "input.csv.gz"
@@ -356,7 +427,7 @@ def test_csv_to_parquet_protocol_mismatch(tmp_path):
         ],
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Protocol mismatch"):
         csv_to_parquet(
             [input_file],
             output_path="memory://bucket/out.parquet",
