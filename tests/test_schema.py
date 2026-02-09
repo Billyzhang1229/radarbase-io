@@ -11,6 +11,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
+import radarbase_io.schema as schema_module
 from radarbase_io.index import build_index
 from radarbase_io.schema import _iter_observed_headers, build_schema
 
@@ -287,6 +288,33 @@ def test_iter_observed_headers_normalizes_inputs():
 def test_build_schema_invalid_schema_type_raises():
     with pytest.raises(ValueError, match="schema must be a dict or path-like"):
         build_schema(123)
+
+
+def test_load_schema_empty_resolved_path_raises(monkeypatch):
+    monkeypatch.setattr(
+        schema_module, "resolve_paths", lambda *args, **kwargs: (None, [])
+    )
+
+    with pytest.raises(ValueError, match="Schema path is empty"):
+        schema_module._load_schema("memory://schema.avsc")
+
+
+def test_extract_array_record_type_handles_nested_inner_dict():
+    record = schema_module._extract_array_record_type(
+        {
+            "type": {
+                "type": "array",
+                "items": {
+                    "type": "record",
+                    "name": "Entry",
+                    "fields": [{"name": "value", "type": "string"}],
+                },
+            }
+        }
+    )
+
+    assert record is not None
+    assert record["name"] == "Entry"
 
 
 def test_build_schema_missing_file_raises(tmp_path):

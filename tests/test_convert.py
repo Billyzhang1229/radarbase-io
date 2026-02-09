@@ -594,6 +594,96 @@ def test_validate_schema_error_paths():
         convert_module._validate_schema(bad)
 
 
+def test_validate_schema_array_record_dtypes_edge_paths():
+    base = {
+        "columns": ["a"],
+        "pandas_dtypes": {"a": "string"},
+        "meta": pd.DataFrame({"a": pd.Series(dtype="string")}),
+        "pyarrow_schema": pa.schema([pa.field("a", pa.string())]),
+    }
+
+    normalized = dict(base)
+    normalized["array_record_dtypes"] = None
+    out = convert_module._validate_schema(normalized)
+    assert out[4] == {}
+
+    bad = dict(base)
+    bad["array_record_dtypes"] = {1: {"q": "object"}}
+    with pytest.raises(ValueError, match="keys must be strings"):
+        convert_module._validate_schema(bad)
+
+    bad = dict(base)
+    bad["array_record_dtypes"] = {"value.answers": "not-a-dict"}
+    with pytest.raises(ValueError, match="values must be dicts"):
+        convert_module._validate_schema(bad)
+
+    bad = dict(base)
+    bad["array_record_dtypes"] = {"value.answers": {1: "object"}}
+    with pytest.raises(ValueError, match="field names must be strings"):
+        convert_module._validate_schema(bad)
+
+    bad = dict(base)
+    bad["array_record_dtypes"] = {"value.answers": {"q": 123}}
+    with pytest.raises(ValueError, match="dtype values must be strings"):
+        convert_module._validate_schema(bad)
+
+
+def test_sample_paths_for_header_scan_validation_and_sampling():
+    with pytest.raises(ValueError, match="sample_size must be greater than 0"):
+        convert_module._sample_paths_for_header_scan(["a", "b"], sample_size=0)
+
+    paths = [f"path-{i}" for i in range(10)]
+    sampled = convert_module._sample_paths_for_header_scan(paths, sample_size=3)
+    assert sampled == ["path-0", "path-3", "path-6"]
+
+
+def test_expand_array_record_columns_from_headers_filters_non_matching_items():
+    subfield_dtypes = {"questionId": "object", "value": "object"}
+
+    no_match = convert_module._expand_array_record_columns_from_headers(
+        "value.answers",
+        subfield_dtypes,
+        ["unrelated.0.questionId"],
+    )
+    assert no_match == []
+
+    expanded = convert_module._expand_array_record_columns_from_headers(
+        "value.answers",
+        subfield_dtypes,
+        [
+            "other.answers.0.questionId",
+            "value.answers.0.unknown",
+            "value.answers.0.questionId",
+        ],
+    )
+    assert expanded == [("value.answers.0.questionId", "object")]
+
+
+def test_expand_schema_with_observed_array_columns_early_returns(monkeypatch):
+    out_columns, out_dtypes = convert_module._expand_schema_with_observed_array_columns(
+        fsspec.filesystem("file"),
+        ["dummy.csv"],
+        [],
+        {},
+        {"value.answers": {"questionId": "object"}},
+    )
+    assert out_columns == []
+    assert out_dtypes == {}
+
+    monkeypatch.setattr(convert_module, "_read_header_columns", lambda fs, path: [])
+    columns = ["value.answers"]
+    dtypes = {"value.answers": "object"}
+    out_columns, out_dtypes = convert_module._expand_schema_with_observed_array_columns(
+        fsspec.filesystem("file"),
+        ["dummy.csv"],
+        columns,
+        dtypes,
+        {"value.answers": {"questionId": "object"}},
+    )
+    assert out_columns == columns
+    assert out_dtypes == dtypes
+
+
 def test_read_batch_error_and_empty_paths(tmp_path):
     columns = ["a"]
     dtypes = {"a": "string"}
@@ -794,6 +884,23 @@ def test_estimate_npartitions_from_size_uses_sampling():
     assert fs.calls == 50
 
 
+def test_estimate_npartitions_from_size_validation_and_empty_paths(tmp_path):
+    fs = fsspec.filesystem("file")
+
+    with pytest.raises(ValueError, match="target size must be greater than 0"):
+        convert_module._estimate_npartitions_from_size(fs, ["dummy"], "0B")
+
+    with pytest.raises(ValueError, match="sample_size must be greater than 0"):
+        convert_module._estimate_npartitions_from_size(
+            fs,
+            ["dummy"],
+            "1KB",
+            sample_size=0,
+        )
+
+    assert convert_module._estimate_npartitions_from_size(fs, [], "1KB") == 1
+
+
 def test_csv_to_parquet_repartition_string_with_client_uses_estimated_npartitions(
     monkeypatch, tmp_path
 ):
@@ -841,6 +948,46 @@ def test_csv_to_parquet_repartition_string_with_client_uses_estimated_npartition
     )
 
     assert calls["npartitions"] == 4
+
+
+def test_csv_to_parquet_repartition_string_without_client_uses_partition_size(
+    monkeypatch, tmp_path
+):
+    schema = _build_schema_output(tmp_path)
+    input_file = tmp_path / "single.csv.gz"
+    _write_csv(
+        input_file,
+        [{"key.projectId": "projA", "key.userId": "u1", "value.time": 1.0}],
+    )
+
+    calls = {"partition_size": None}
+    real_repartition = convert_module.dd.DataFrame.repartition
+
+    def _capture_repartition(self, *args, **kwargs):
+        if "partition_size" in kwargs:
+            calls["partition_size"] = kwargs["partition_size"]
+        return real_repartition(self, *args, **kwargs)
+
+    monkeypatch.setattr(
+        convert_module,
+        "compute_dask",
+        lambda *args, **kwargs: [None, 1],  # noqa: ARG005
+    )
+    monkeypatch.setattr(
+        convert_module.dd.DataFrame,
+        "repartition",
+        _capture_repartition,
+    )
+
+    csv_to_parquet(
+        [input_file],
+        output_path=tmp_path / "out_dataset",
+        schema=schema,
+        output_mode="dataset",
+        repartition="256MB",
+    )
+
+    assert calls["partition_size"] == "256MB"
 
 
 def test_csv_to_parquet_string_csv_path(tmp_path):

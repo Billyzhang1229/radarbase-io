@@ -248,9 +248,7 @@ def build_schema(
     array_record_dtypes = OrderedDict()
 
     for name in ordered_names:
-        field = fields_by_name.get(name)
-        if field is None:
-            continue
+        field = fields_by_name[name]
         field_type = field.get("type")
         record = _extract_record_type(field_type)
         if record is not None:
