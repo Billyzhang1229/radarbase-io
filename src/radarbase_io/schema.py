@@ -80,19 +80,24 @@ def _iter_observed_headers(observed_columns):
     return observed_columns
 
 
-def _collect_array_record_columns(prefix, array_record, observed_columns):
-    if not observed_columns:
-        return []
+def _array_record_subfield_dtypes(prefix, array_record):
     item_fields = array_record.get("fields")
     if not isinstance(item_fields, list):
         raise ValueError(f"Array record field '{prefix}' missing 'fields'")
-    subfield_dtypes = {}
+    subfield_dtypes = OrderedDict()
     for item_field in item_fields:
         if not isinstance(item_field, dict) or "name" not in item_field:
             raise ValueError(f"Array record field '{prefix}' has invalid subfield")
         subfield_dtypes[item_field["name"]] = _avro_type_to_pandas(
             item_field.get("type")
         )
+    return subfield_dtypes
+
+
+def _collect_array_record_columns(prefix, subfield_dtypes, observed_columns):
+    if not observed_columns:
+        return []
+
     expanded = []
     seen = set()
     match_prefix = f"{prefix}."
@@ -191,7 +196,8 @@ def build_schema(
     -------
     dict
         Dictionary containing measurement metadata, flattened columns,
-        pandas dtype mapping, meta DataFrame, and pyarrow schema.
+        pandas dtype mapping, meta DataFrame, pyarrow schema, and
+        array-record subfield dtypes for dynamic indexed-column expansion.
     """
 
     schema_obj = _load_schema(schema, fs=fs, storage_options=storage_options)
@@ -239,11 +245,10 @@ def build_schema(
 
     columns = []
     pandas_dtypes = OrderedDict()
+    array_record_dtypes = OrderedDict()
 
     for name in ordered_names:
-        field = fields_by_name.get(name)
-        if field is None:
-            continue
+        field = fields_by_name[name]
         field_type = field.get("type")
         record = _extract_record_type(field_type)
         if record is not None:
@@ -256,9 +261,14 @@ def build_schema(
                 column = f"{name}.{subfield['name']}"
                 array_record = _extract_array_record_type(subfield.get("type"))
                 if array_record is not None:
-                    expanded = _collect_array_record_columns(
+                    subfield_dtypes = _array_record_subfield_dtypes(
                         column,
                         array_record,
+                    )
+                    array_record_dtypes[column] = dict(subfield_dtypes)
+                    expanded = _collect_array_record_columns(
+                        column,
+                        subfield_dtypes,
                         observed_columns,
                     )
                     if expanded:
@@ -271,9 +281,11 @@ def build_schema(
         else:
             array_record = _extract_array_record_type(field_type)
             if array_record is not None:
+                subfield_dtypes = _array_record_subfield_dtypes(name, array_record)
+                array_record_dtypes[name] = dict(subfield_dtypes)
                 expanded = _collect_array_record_columns(
                     name,
-                    array_record,
+                    subfield_dtypes,
                     observed_columns,
                 )
                 if expanded:
@@ -300,6 +312,7 @@ def build_schema(
         "fqn": fqn,
         "columns": columns,
         "pandas_dtypes": dict(pandas_dtypes),
+        "array_record_dtypes": dict(array_record_dtypes),
         "meta": meta,
         "pyarrow_schema": pyarrow_schema,
     }

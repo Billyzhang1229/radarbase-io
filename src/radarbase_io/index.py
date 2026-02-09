@@ -5,8 +5,8 @@ from itertools import chain
 import pandas as pd
 from dask import delayed
 
-from .fs import fs_from_json, fs_to_json, resolve_paths
-from .performance import run_dask_tasks
+from .fs import call_with_fs_json, fs_to_json, resolve_paths
+from .performance import compute_dask
 from .utils import parse_participant_uuids, parse_radar_path
 
 
@@ -36,29 +36,36 @@ def list_one_participant(participant_dir, fs=None, *, fs_json=None):
     if fs is None:
         if fs_json is None:
             raise ValueError("Pass either fs= or fs_json=.")
-        fs = fs_from_json(fs_json)
     elif fs_json is not None:
         raise ValueError("Pass either fs= or fs_json=, not both.")
 
-    entries = fs.ls(participant_dir, detail=True)
-    if isinstance(entries, dict):
-        entries = entries.values()
+    def _list_rows(active_fs):
+        entries = active_fs.ls(participant_dir, detail=True)
+        if isinstance(entries, dict):
+            entries = entries.values()
 
-    dir_paths = []
-    for entry in entries:
-        if isinstance(entry, dict):
-            entry_type = entry.get("type")
-            path = entry.get("name")
-            if entry_type in {"directory", "dir"} and path:
-                dir_paths.append(path)
-            elif entry_type is None and path and fs.isdir(path):
-                dir_paths.append(path)
-        elif fs.isdir(entry):
-            dir_paths.append(entry)
+        dir_paths = []
+        for entry in entries:
+            if isinstance(entry, dict):
+                entry_type = entry.get("type")
+                path = entry.get("name")
+                if entry_type in {"directory", "dir"} and path:
+                    dir_paths.append(path)
+                elif entry_type is None and path and active_fs.isdir(path):
+                    dir_paths.append(path)
+            elif active_fs.isdir(entry):
+                dir_paths.append(entry)
 
-    rows = [parse_radar_path(path) for path in dir_paths]
+        return [parse_radar_path(path) for path in dir_paths]
 
-    return rows
+    if fs is not None:
+        return _list_rows(fs)
+
+    return call_with_fs_json(
+        fs_json,
+        _list_rows,
+        operation=f"Listing participant directory {participant_dir!r}",
+    )
 
 
 def _build_index(
@@ -84,7 +91,7 @@ def _build_index(
 
     kwargs = {"fs": fs} if client is None else {"fs_json": fs_to_json(fs)}
     tasks = [delayed(list_one_participant)(path, **kwargs) for path in participant_dirs]
-    rows_nested = run_dask_tasks(
+    rows_nested = compute_dask(
         tasks, client=client, show_progress=show_progress, scheduler="threads"
     )
 

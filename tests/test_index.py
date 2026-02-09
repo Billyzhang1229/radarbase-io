@@ -4,6 +4,7 @@ import fsspec
 import pandas as pd
 import pytest
 
+import radarbase_io.fs as fs_module
 from radarbase_io.index import _build_index, build_index, list_one_participant
 
 UUID1 = "11111111-1111-1111-1111-111111111111"
@@ -155,3 +156,71 @@ def test_build_index_no_data_raises(tmp_path):
 def test_build_index_empty_root_returns_empty_dataframe():
     df = _build_index([])
     assert df.empty
+
+
+def test_list_one_participant_fs_json_reuses_cached_fs(monkeypatch, tmp_path):
+    fs_module._clear_fs_json_cache()
+    root = tmp_path / "projA"
+    participant = root / UUID1
+    (participant / "accel").mkdir(parents=True)
+
+    real_fs_from_json = fs_module.fs_from_json
+    calls = {"count": 0}
+
+    def counted_fs_from_json(fs_json):
+        calls["count"] += 1
+        return real_fs_from_json(fs_json)
+
+    monkeypatch.setattr(fs_module, "fs_from_json", counted_fs_from_json)
+
+    fs = fsspec.filesystem("file")
+    rows1 = list_one_participant(str(participant), fs_json=fs.to_json())
+    rows2 = list_one_participant(str(participant), fs_json=fs.to_json())
+
+    assert len(rows1) == 1
+    assert len(rows2) == 1
+    assert calls["count"] == 1
+    fs_module._clear_fs_json_cache()
+
+
+def test_list_one_participant_fs_json_retries_connection_error(monkeypatch, tmp_path):
+    fs_module._clear_fs_json_cache()
+    root = tmp_path / "projA"
+    participant = root / UUID1
+    (participant / "accel").mkdir(parents=True)
+
+    fs = fsspec.filesystem("file")
+    real_fs_from_json = fs_module.fs_from_json
+    base_fs = real_fs_from_json(fs.to_json())
+
+    class FailingLsFs:
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.failed = False
+
+        def ls(self, path, detail=True):
+            if not self.failed:
+                self.failed = True
+                raise ConnectionError("Connection lost")
+            return self.wrapped.ls(path, detail=detail)
+
+        def isdir(self, path):
+            return self.wrapped.isdir(path)
+
+    calls = {"count": 0}
+    flaky_fs = FailingLsFs(base_fs)
+
+    def fake_fs_from_json(_fs_json):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return flaky_fs
+        return real_fs_from_json(fs.to_json())
+
+    monkeypatch.setattr(fs_module, "fs_from_json", fake_fs_from_json)
+
+    rows = list_one_participant(str(participant), fs_json=fs.to_json())
+
+    assert len(rows) == 1
+    assert rows[0]["data_type"] == "accel"
+    assert calls["count"] == 2
+    fs_module._clear_fs_json_cache()
